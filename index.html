@@ -74,6 +74,7 @@ body{
 .screen{
   position:relative;
   width:100%;
+  margin-inline:auto;
   aspect-ratio:16/9;
   background:#0a0512;
   border:3px solid var(--edge);
@@ -198,12 +199,7 @@ button[aria-pressed="true"]{color:var(--void);background:var(--cyan);border-colo
   body{padding:4px;}
   .cabinet{gap:5px;}
   .marquee,.credits,.keys{display:none;}
-  .screen{
-    /* держим 16:9 и вписываем по высоте, иначе низ экрана уезжает под панель */
-    width:min(100%, calc((100dvh - 74px) * 16 / 9));
-    margin-inline:auto;
-    border-width:2px;
-  }
+  .screen{border-width:2px;}   /* вписыванием по высоте занимается fitScreen() */
   .panel{padding:5px;gap:6px;}
   .pads{margin-left:0;width:100%;display:flex;gap:6px;}
   .pad{flex:1;min-height:46px;font-size:20px;background:#33195a;}
@@ -293,12 +289,18 @@ function layoutWorld(){
 }
 
 /* Вписываем экран в свободную высоту: aspect-ratio сам посчитает высоту,
-   наша задача — не дать ширине вырасти так, что низ уедет под кнопки. */
+   наша задача — не дать ширине вырасти так, что низ уедет под кнопки.
+   Ограничиваем весь корпус, а не только экран, иначе он прижимается к левому краю,
+   а панель остаётся во всю ширину — картинка уезжает вбок. */
 function fitScreen(){
+  const cabinet = document.querySelector(".cabinet");
   const panel = document.querySelector(".panel");
   const panelH = panel ? panel.getBoundingClientRect().height : 0;
-  const avail = window.innerHeight - panelH - 34;
-  screenEl.style.maxWidth = avail > 120 ? Math.floor(avail * W / H) + "px" : "";
+  const avail = window.innerHeight - panelH - 40;
+  const byHeight = avail > 120 ? Math.floor(avail * W / H) : Infinity;
+  cabinet.style.maxWidth = Math.min(980, byHeight) + "px";
+  cabinet.style.marginInline = "auto";
+  screenEl.style.maxWidth = "";
 }
 
 /* ============================================================
