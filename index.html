@@ -1847,6 +1847,25 @@ function scrim(top, bottom, strength){
   u.fillStyle = gr;
   u.fillRect(0, top, uiC.width, bottom-top);
 }
+/* Главная кнопка: заметная заливка, тёмный текст, лёгкое дыхание —
+   чтобы взгляд сразу находил, куда нажимать. */
+function bigButton(label, y, rect, size){
+  const CW = uiC.width;
+  const pulse = 1 + Math.sin(time*3.4)*0.02;
+  const h = Math.round(size*uiK*2.2);
+  u.font = "bold " + Math.round(size*uiK) + "px ui-monospace, Consolas, 'Courier New', monospace";
+  const w = Math.min(CW - 48, Math.max(u.measureText(label).width + 80*uiK, 260*uiK)) * pulse;
+  rect.x = CW/2 - w/2; rect.y = y - h/2; rect.w = w; rect.h = h;
+
+  u.fillStyle = "rgba(55,230,212,.16)";
+  u.fillRect(rect.x-3, rect.y-3, rect.w+6, rect.h+6);
+  u.fillStyle = P.cyan;
+  u.fillRect(rect.x, rect.y, rect.w, rect.h);
+  u.fillStyle = "#0a0512";
+  u.textAlign = "center";
+  u.fillText(label, CW/2, rect.y + rect.h*0.68);
+}
+
 function heartIcon(x, y, s, filled){
   u.fillStyle = filled ? P.magenta : "rgba(246,231,193,.22)";
   const b = (a,bb,w,h) => u.fillRect(x+a*s, y+bb*s, w*s, h*s);
@@ -1859,6 +1878,7 @@ const boardRect = {x:0, y:0, w:0, h:0};
 const bossRect = {x:0, y:0, w:0, h:0};
 const boardBossRect = {x:0, y:0, w:0, h:0};
 const boardDiffRect = {x:0, y:0, w:0, h:0};
+const playRect = {x:0, y:0, w:0, h:0};
 
 function drawUI(){
   u.clearRect(0,0,uiC.width,uiC.height);
@@ -1972,8 +1992,7 @@ function drawUI(){
     text(boardLine, cx, boardRect.y + boardRect.h*0.68, 17, P.orange, "center");
 
     text(DIFFS[menuIndex].hint, cx, yHint, narrow?12:14, "#b79ccb", "center", "normal");
-    if(Math.floor(time*1.6) % 2 === 0)
-      text(coarse ? "КОСНИСЬ — В БОЙ" : "ПРОБЕЛ — В БОЙ", cx, yGo, 22, P.cyan, "center");
+    bigButton("ИГРАТЬ  ▶", yGo, playRect, 20);
 
     text(coarse ? "веди пальцем — Ярик бежит за ним   ·   имя сверху меняется"
                : "↑ ↓ — выбор   ·   N — имя   ·   T — таблица   ·   M — звук",
@@ -2075,8 +2094,7 @@ function drawUI(){
                                                : "результат в общей таблице";
       text(msg, cx, CH*0.69, 12, sentState === "failed" ? P.magenta : "#8a6fa0", "center", "normal");
     }
-    if(Math.floor(time*1.6) % 2 === 0)
-      text(coarse ? "КОСНИСЬ — ЕЩЁ РАЗ" : "ПРОБЕЛ — ЕЩЁ РАЗ", cx, CH*0.77, 24, P.cyan, "center");
+    bigButton("ЕЩЁ РАЗ  ▶", CH*0.775, playRect, 20);
     text(coarse ? "кнопка «Меню» — сменить сложность" : "ESC — выбрать сложность",
          cx, CH*0.84, narrow?12:16, "#8a6fa0", "center", "normal");
   }
