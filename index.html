@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Громила — ретро-аркада: мальчик Ярик уворачивается от камней великана.">
+<title>Громила</title>
+<style>
+:root{
+  --void:#0a0512;
+  --cab:#150a24;
+  --cab-2:#1e0f31;
+  --edge:#3a1c52;
+  --magenta:#e0396b;
+  --cyan:#37e6d4;
+  --orange:#ff8b3d;
+  --bone:#f6e7c1;
+  --dim:#9a7fae;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:var(--void);
+  background-image:
+    radial-gradient(120% 90% at 50% -20%, #2a103f 0%, rgba(42,16,63,0) 60%),
+    repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0 1px, rgba(0,0,0,0) 1px 3px);
+  color:var(--bone);
+  font-family:var(--mono);
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:clamp(8px,2.4vw,28px);
+  -webkit-font-smoothing:antialiased;
+}
+.cabinet{
+  width:100%;
+  max-width:980px;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+}
+.marquee{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+  padding:0 4px;
+}
+.marquee h1{
+  margin:0;
+  font-size:clamp(20px,4.2vw,34px);
+  font-weight:700;
+  letter-spacing:.34em;
+  text-transform:uppercase;
+  color:var(--bone);
+  text-shadow:2px 0 0 var(--magenta), -2px 0 0 var(--cyan), 0 0 22px rgba(224,57,107,.55);
+}
+.marquee .sub{
+  font-size:clamp(9px,1.6vw,12px);
+  letter-spacing:.28em;
+  text-transform:uppercase;
+  color:var(--dim);
+}
+.screen{
+  position:relative;
+  width:100%;
+  aspect-ratio:16/9;
+  background:#0a0512;
+  border:3px solid var(--edge);
+  border-radius:14px;
+  overflow:hidden;
+  box-shadow:
+    0 0 0 6px var(--cab),
+    0 0 42px rgba(224,57,107,.28),
+    0 22px 60px rgba(0,0,0,.65),
+    inset 0 0 60px rgba(0,0,0,.7);
+  cursor:crosshair;
+  touch-action:none;
+}
+.screen canvas{position:absolute;inset:0;width:100%;height:100%;display:block;}
+#game{image-rendering:pixelated;image-rendering:crisp-edges;}
+#ui{pointer-events:none;}
+.fx{position:absolute;inset:0;pointer-events:none;}
+.scanlines{
+  background:repeating-linear-gradient(0deg, rgba(0,0,0,.34) 0 1px, rgba(0,0,0,0) 1px 3px);
+  mix-blend-mode:multiply;
+  opacity:.75;
+}
+.glare{
+  background:
+    radial-gradient(130% 100% at 50% 0%, rgba(255,255,255,.09) 0%, rgba(255,255,255,0) 45%),
+    radial-gradient(120% 120% at 50% 55%, rgba(0,0,0,0) 45%, rgba(0,0,0,.72) 100%);
+}
+.panel{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:10px;
+  padding:12px 14px;
+  background:linear-gradient(180deg,var(--cab-2),var(--cab));
+  border:1px solid var(--edge);
+  border-radius:12px;
+}
+.keys{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:11px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--dim);
+  flex:1 1 240px;
+}
+kbd{
+  display:inline-block;
+  min-width:26px;
+  padding:4px 7px;
+  text-align:center;
+  font-family:inherit;
+  font-size:11px;
+  color:var(--bone);
+  background:#2b1442;
+  border:1px solid #4d2569;
+  border-bottom-width:3px;
+  border-radius:5px;
+}
+.pads{display:flex;gap:8px;margin-left:auto;}
+button{
+  font-family:inherit;
+  font-size:13px;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--bone);
+  background:#2b1442;
+  border:1px solid #4d2569;
+  border-bottom:3px solid #4d2569;
+  border-radius:8px;
+  padding:10px 16px;
+  cursor:pointer;
+  user-select:none;
+  -webkit-user-select:none;
+  touch-action:manipulation;
+  transition:background .12s ease, color .12s ease, transform .06s ease;
+}
+button:hover{background:#3a1c58;}
+button:active{transform:translateY(2px);border-bottom-width:1px;}
+button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}
+button[aria-pressed="true"]{color:var(--void);background:var(--cyan);border-color:var(--cyan);}
+.pad{min-width:60px;font-size:16px;}
+.credits{
+  padding:0 6px;
+  font-size:10px;
+  letter-spacing:.2em;
+  text-transform:uppercase;
+  color:#6d5580;
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+}
+@media (max-width:640px){
+  .marquee h1{letter-spacing:.22em;}
+  .keys{display:none;}
+  .pads{margin-left:0;width:100%;}
+  .pad{flex:1;padding:16px 0;font-size:20px;}
+}
+@media (prefers-reduced-motion:reduce){
+  .screen{box-shadow:0 0 0 6px var(--cab),0 18px 40px rgba(0,0,0,.6);}
+}
+</style>
+</head>
+<body>
+<main class="cabinet">
+  <div class="marquee">
+    <h1>Громила</h1>
+    <span class="sub">Ярик против великана · 1986</span>
+  </div>
+
+  <div class="screen" id="screen">
+    <canvas id="game" width="480" height="270" aria-label="Игровое поле"></canvas>
+    <canvas id="ui" width="960" height="540" aria-hidden="true"></canvas>
+    <div class="fx scanlines"></div>
+    <div class="fx glare"></div>
+  </div>
+
+  <div class="panel">
+    <div class="keys">
+      <kbd>←</kbd><kbd>→</kbd> бежать &nbsp;·&nbsp; <kbd>↑</kbd><kbd>↓</kbd> выбор &nbsp;·&nbsp; <kbd>Space</kbd> старт &nbsp;·&nbsp; <kbd>Esc</kbd> меню
+    </div>
+    <div class="pads">
+      <button class="pad" id="btnLeft" aria-label="Влево">◀</button>
+      <button class="pad" id="btnRight" aria-label="Вправо">▶</button>
+      <button id="btnMenu">Меню</button>
+      <button id="btnSound" aria-pressed="false">Звук</button>
+    </div>
+  </div>
+
+  <div class="credits">
+    <span>Уворачивайся. Громила не устаёт.</span>
+    <span>Chiptune · Web Audio</span>
+  </div>
+</main>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   ХОЛСТЫ
+   Мир рисуется в 480x270 и растягивается CSS'ом (pixelated),
+   интерфейс — на отдельном холсте 960x540, чтобы текст был чётким.
+   ============================================================ */
+const W = 480, H = 270, S = 2;
+const world = document.getElementById("game");
+const g = world.getContext("2d");
+const uiC = document.getElementById("ui");
+const u = uiC.getContext("2d");
+g.imageSmoothingEnabled = false;
+
+const GROUND_Y   = 238;   // линия ног Ярика
+const HORIZON_Y  = 168;   // верх дальнего плато
+const BOSS_FEET  = 172;   // ноги Громилы (задний план)
+const HERO_MIN_X = 26, HERO_MAX_X = W - 26;
+
+/* ============================================================
+   ПАЛИТРА
+   ============================================================ */
+const SKY = ["#160a2b","#200d38","#2e1046","#431453","#5f1a5c","#84215f","#a92c5b","#cc4352","#e8664a","#f79150"];
+const P = {
+  mountain:"#22103a", mountainFar:"#2b1444",
+  plateau:"#1d0c2f", plateauTop:"#3b1a52", chasm:"#0d0518",
+  ground:"#2c1339", groundTop:"#4d2360", groundSpeck:"#5f2c72",
+  bossSkin:"#5f7a3c", bossSkinLo:"#3f5527", bossSkinHi:"#86a45a",
+  bossCloth:"#7a4526", bossClothLo:"#542d17", bossEye:"#ff5a4a",
+  rock:"#8b8496", rockLo:"#5d5769", rockHi:"#b6afc2",
+  shirt:"#3a7ad4", shirtLo:"#255296", pants:"#8a4a2a",
+  skin:"#f3c79b", hair:"#f2b83c", dark:"#160c22",
+  magenta:"#e0396b", cyan:"#37e6d4", bone:"#f6e7c1", orange:"#ff8b3d"
+};
+
+/* ============================================================
+   ЗВУК — чиптюн 80-х на Web Audio
+   ============================================================ */
+const Audio5 = (function(){
+  let ac=null, master=null, musicBus=null, leadBus=null, sfxBus=null, noiseBuf=null;
+  let enabled=false, running=false, timer=null;
+  let step=0, nextTime=0, bpm=142, intensity=0;
+
+  // Am - F - C - G, арпеджио + пульс-лид
+  const PROG = [
+    {root:45, chord:[57,60,64]},
+    {root:41, chord:[53,57,60]},
+    {root:48, chord:[60,64,67]},
+    {root:43, chord:[55,59,62]}
+  ];
+  const R = -1;
+  const LEAD = [
+    [69,R,72,R,76,R,72,R, 71,R,R,R,69,R,R,R],
+    [72,R,74,R,77,R,74,R, 72,R,R,R,69,R,R,R],
+    [76,R,79,R,76,R,72,R, 74,R,R,R,71,R,R,R],
+    [67,R,71,R,74,R,79,R, 78,R,R,R,R,R,76,R]
+  ];
+
+  const mtof = m => 440 * Math.pow(2, (m-69)/12);
+
+  function build(){
+    if(ac) return;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if(!Ctx) return;
+    ac = new Ctx();
+
+    master = ac.createGain();
+    master.gain.value = 0.0;
+    const cap = ac.createDynamicsCompressor();
+    cap.threshold.value = -12; cap.ratio.value = 6;
+    master.connect(cap); cap.connect(ac.destination);
+
+    musicBus = ac.createGain(); musicBus.gain.value = 0.55; musicBus.connect(master);
+    sfxBus   = ac.createGain(); sfxBus.gain.value   = 0.85; sfxBus.connect(master);
+
+    // эхо на лид-канале — фирменный звук аркад 80-х
+    leadBus = ac.createGain(); leadBus.gain.value = 0.5; leadBus.connect(musicBus);
+    const dly = ac.createDelay(0.5); dly.delayTime.value = 0.1690;
+    const fb  = ac.createGain(); fb.gain.value = 0.3;
+    const dampen = ac.createBiquadFilter(); dampen.type="lowpass"; dampen.frequency.value=2600;
+    leadBus.connect(dly); dly.connect(dampen); dampen.connect(fb); fb.connect(dly); dampen.connect(musicBus);
+
+    const n = ac.sampleRate * 0.6;
+    noiseBuf = ac.createBuffer(1, n, ac.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for(let i=0;i<n;i++) d[i] = Math.random()*2-1;
+  }
+
+  function tone(type, freq, t, dur, vol, dest, glideTo){
+    const o = ac.createOscillator();
+    const gn = ac.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    if(glideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20,glideTo), t+dur);
+    gn.gain.setValueAtTime(0.0001, t);
+    gn.gain.exponentialRampToValueAtTime(Math.max(0.0002,vol), t+0.008);
+    gn.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    o.connect(gn); gn.connect(dest||sfxBus);
+    o.start(t); o.stop(t+dur+0.02);
+  }
+
+  function noise(t, dur, vol, freq, q, sweepTo, dest){
+    const src = ac.createBufferSource(); src.buffer = noiseBuf;
+    const f = ac.createBiquadFilter();
+    f.type = "bandpass"; f.frequency.setValueAtTime(freq, t); f.Q.value = q||1;
+    if(sweepTo) f.frequency.exponentialRampToValueAtTime(Math.max(40,sweepTo), t+dur);
+    const gn = ac.createGain();
+    gn.gain.setValueAtTime(0.0001, t);
+    gn.gain.exponentialRampToValueAtTime(Math.max(0.0002,vol), t+0.006);
+    gn.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    src.connect(f); f.connect(gn); gn.connect(dest||sfxBus);
+    src.start(t); src.stop(t+dur+0.02);
+  }
+
+  function playStep(i, t){
+    const bar = Math.floor(i/16) % 4;
+    const s = i % 16;
+    const ch = PROG[bar];
+    const hot = intensity;
+
+    // бас — восьмые с прыжком на октаву
+    if(s % 2 === 0){
+      const oct = (s % 8 === 4) ? 12 : 0;
+      tone("sawtooth", mtof(ch.root + oct), t, 0.16, 0.20 + hot*0.05, musicBus);
+      tone("square",   mtof(ch.root + oct - 12), t, 0.14, 0.10, musicBus);
+    }
+    // арпеджио шестнадцатыми
+    const arp = ch.chord[(s + Math.floor(s/4)) % 3] + 12;
+    tone("square", mtof(arp), t, 0.075, 0.055 + hot*0.02, musicBus);
+    // лид
+    const nte = LEAD[bar][s];
+    if(nte > 0) tone("square", mtof(nte + (hot>0.6?12:0)), t, 0.20, 0.10, leadBus);
+    // ударные
+    if(s===0 || s===8 || (s===11 && hot>0.35)){
+      tone("sine", 140, t, 0.16, 0.42, musicBus, 44);
+    }
+    if(s===4 || s===12){
+      noise(t, 0.13, 0.18, 1500, 0.8, 700, musicBus);
+    }
+    if(s % 2 === 0){
+      noise(t, 0.03, 0.05 + hot*0.03, 8000, 1.2, 6000, musicBus);
+    }
+  }
+
+  function tick(){
+    if(!ac) return;
+    const spb = 60 / bpm / 4;
+    while(nextTime < ac.currentTime + 0.14){
+      playStep(step, nextTime);
+      nextTime += spb;
+      step++;
+    }
+  }
+
+  return {
+    unlock(){
+      build();
+      if(!ac) return;
+      if(ac.state === "suspended") ac.resume();
+    },
+    setEnabled(on){
+      enabled = on;
+      this.unlock();
+      if(!ac) return;
+      master.gain.cancelScheduledValues(ac.currentTime);
+      master.gain.linearRampToValueAtTime(on ? 0.5 : 0.0, ac.currentTime + 0.12);
+    },
+    isEnabled(){ return enabled; },
+    startMusic(){
+      this.unlock();
+      if(!ac || running) return;
+      running = true;
+      step = 0;
+      nextTime = ac.currentTime + 0.08;
+      timer = setInterval(tick, 25);
+    },
+    stopMusic(){
+      running = false;
+      if(timer) clearInterval(timer);
+      timer = null;
+    },
+    setIntensity(v){ intensity = Math.max(0, Math.min(1, v)); bpm = 142 + intensity*22; },
+    duck(amount, secs){
+      if(!ac) return;
+      musicBus.gain.cancelScheduledValues(ac.currentTime);
+      musicBus.gain.setValueAtTime(musicBus.gain.value, ac.currentTime);
+      musicBus.gain.linearRampToValueAtTime(0.55*amount, ac.currentTime+0.05);
+      musicBus.gain.linearRampToValueAtTime(0.55, ac.currentTime+secs);
+    },
+    sfx(name){
+      if(!ac || !enabled) return;
+      const t = ac.currentTime + 0.01;
+      switch(name){
+        case "throw":
+          tone("square", 220, t, 0.20, 0.10, sfxBus, 620);
+          noise(t, 0.22, 0.10, 700, 0.9, 2600);
+          break;
+        case "impact":
+          noise(t, 0.30, 0.34, 900, 0.6, 90);
+          tone("sine", 110, t, 0.28, 0.40, sfxBus, 34);
+          break;
+        case "boom":
+          noise(t, 0.50, 0.42, 700, 0.5, 60);
+          tone("sine", 80, t, 0.45, 0.50, sfxBus, 28);
+          tone("sawtooth", 60, t, 0.30, 0.16, sfxBus, 25);
+          break;
+        case "hurt":
+          tone("square", 440, t, 0.30, 0.26, sfxBus, 70);
+          noise(t+0.02, 0.22, 0.16, 1200, 0.7, 200);
+          break;
+        case "dodge":
+          tone("square", 880, t, 0.06, 0.12, sfxBus);
+          tone("square", 1320, t+0.06, 0.07, 0.12, sfxBus);
+          break;
+        case "heart":
+          [0,0.07,0.14,0.21].forEach((d,i)=>tone("square", mtof(72+i*4), t+d, 0.10, 0.14, sfxBus));
+          break;
+        case "roar":
+          tone("sawtooth", 90, t, 0.75, 0.30, sfxBus, 42);
+          noise(t, 0.75, 0.22, 320, 0.7, 120);
+          break;
+        case "start":
+          [0,0.08,0.16,0.30].forEach((d,i)=>tone("square", mtof([57,64,69,76][i]), t+d, i===3?0.32:0.10, 0.18, sfxBus));
+          break;
+        case "over":
+          [0,0.16,0.32,0.50].forEach((d,i)=>tone("square", mtof([69,67,64,57][i]), t+d, i===3?0.7:0.16, 0.20, sfxBus));
+          tone("sawtooth", 60, t+0.5, 0.9, 0.18, sfxBus, 30);
+          break;
+      }
+    }
+  };
+})();
+
+/* ============================================================
+   СОСТОЯНИЕ
+   ============================================================ */
+const rnd  = (a,b) => a + Math.random()*(b-a);
+const clamp = (v,a,b) => v<a?a:(v>b?b:v);
+const lerp = (a,b,t) => a + (b-a)*t;
+
+/* уровни сложности — множители к базовой кривой */
+const DIFFS = [
+  {id:"easy",  name:"ЛЕГКО",     hint:"Камни летят медленно. Четыре жизни.",
+   gap:1.35, flight:1.30, volley:0.45, boulder:0.45, lives:4, mult:0.7, ramp:0.7},
+  {id:"normal",name:"НОРМАЛЬНО", hint:"Как в автоматах 86-го. Три жизни.",
+   gap:1.00, flight:1.00, volley:1.00, boulder:1.00, lives:3, mult:1.0, ramp:1.0},
+  {id:"hard",  name:"СЛОЖНО",    hint:"Залпы по три, частые валуны. Две жизни.",
+   gap:0.72, flight:0.84, volley:1.45, boulder:1.45, lives:2, mult:1.6, ramp:1.35},
+  {id:"koshmar",name:"КОШМАР",   hint:"Одна жизнь. Громила не моргает.",
+   gap:0.54, flight:0.70, volley:1.90, boulder:1.85, lives:1, mult:2.4, ramp:1.8}
+];
+
+let state = "menu";           // menu | play | over
+let diffIndex = 1;            // выбранная сложность
+let menuIndex = 1;            // подсвеченная строка меню
+let time = 0;                 // общие часы анимации (идут всегда)
+let runTime = 0;              // время выживания в текущем забеге
+let score = 0, wave = 1;
+const bests = {};
+let shake = 0, flash = 0, rageFlash = 0;
+let dodgeStreak = 0;
+
+const hero = { x: W/2, vx: 0, dir: 1, walk: 0, lives: 3, inv: 0, alive: true };
+const boss = { x: W/2, drift: 1, state: "wait", t: 0, wait: 1.2, pending: null, arm: 0, recoil: 0, roar: 0, hue: 0 };
+
+let rocks = [], parts = [], craters = [], texts = [], hearts = [];
+
+for(const d of DIFFS){
+  let v = 0;
+  try { v = parseInt(localStorage.getItem("gromila.best." + d.id) || "0", 10) || 0; } catch(e){ v = 0; }
+  bests[d.id] = v;
+}
+try {
+  const saved = localStorage.getItem("gromila.diff");
+  const i = DIFFS.findIndex(d => d.id === saved);
+  if(i >= 0){ diffIndex = i; menuIndex = i; }
+} catch(e){}
+const curDiff = () => DIFFS[diffIndex];
+
+const keys = Object.create(null);
+const pressed = { left:false, right:false };
+
+/* декоративный шум — фиксированный, чтобы фон не «кипел» */
+const stars = Array.from({length:70}, () => ({x:Math.random()*W, y:Math.random()*130, p:Math.random()*6.28, s:Math.random()<0.25?2:1}));
+const specks = Array.from({length:120}, () => ({x:Math.random()*W, y:196+Math.random()*74, w:Math.random()<0.3?2:1}));
+const ridge = Array.from({length:40}, (_,i) => 148 - Math.abs(Math.sin(i*1.7))*26 - (i%3)*3);
+
+/* ============================================================
+   ПРИМИТИВЫ РИСОВАНИЯ (целые пиксели)
+   ============================================================ */
+function px(x,y,w,h,c){ g.fillStyle=c; g.fillRect(x|0, y|0, Math.max(1,w|0), Math.max(1,h|0)); }
+function limb(x1,y1,x2,y2,r,c){
+  const dx=x2-x1, dy=y2-y1;
+  const n = Math.max(1, Math.ceil(Math.hypot(dx,dy)/1.5));
+  for(let i=0;i<=n;i++){
+    const t=i/n;
+    px(x1+dx*t-r, y1+dy*t-r, r*2, r*2, c);
+  }
+}
+function disc(cx,cy,r,c){
+  g.fillStyle=c;
+  for(let y=-r;y<=r;y++){
+    const w = Math.floor(Math.sqrt(Math.max(0, r*r - y*y)));
+    if(w>0) g.fillRect((cx-w)|0, (cy+y)|0, w*2, 1);
+  }
+}
+function ring(cx,cy,rx,ry,c,thick){
+  g.strokeStyle=c; g.lineWidth=thick||1;
+  g.beginPath(); g.ellipse(cx,cy,rx,ry,0,0,Math.PI*2); g.stroke();
+}
+
+/* ============================================================
+   ФОН
+   ============================================================ */
+function drawSky(){
+  const bandH = Math.ceil(HORIZON_Y / SKY.length);
+  for(let i=0;i<SKY.length;i++) px(0, i*bandH, W, bandH, SKY[i]);
+
+  // звёзды в верхней трети
+  for(const s of stars){
+    const tw = 0.45 + 0.55*Math.sin(time*2 + s.p);
+    if(tw > 0.55){
+      g.globalAlpha = Math.min(1, (tw-0.5)*1.6);
+      px(s.x, s.y, s.s, s.s, "#f6e7c1");
+      g.globalAlpha = 1;
+    }
+  }
+
+  // солнце с полосами — синтвейв
+  const cx = 240, cy = 142, r = 58;
+  disc(cx, cy, r, "#ffca5c");
+  for(let y=-r;y<=r;y++){
+    const w = Math.floor(Math.sqrt(Math.max(0, r*r - y*y)));
+    if(!w) continue;
+    const t = (y+r)/(2*r);
+    const col = t<0.35 ? "#ffe08a" : t<0.62 ? "#ff9f4d" : "#ef5f5a";
+    g.fillStyle = col;
+    g.fillRect((cx-w)|0, (cy+y)|0, w*2, 1);
+  }
+  for(let y=6, gap=3; y<r; gap+=1.2, y+=gap+2){
+    const yy = cy + y;
+    const w = Math.floor(Math.sqrt(Math.max(0, r*r - y*y)));
+    px(cx-w, yy, w*2, Math.max(1, gap|0), SKY[SKY.length-3]);
+  }
+
+  // горы
+  g.fillStyle = P.mountainFar;
+  g.beginPath(); g.moveTo(0, HORIZON_Y);
+  for(let i=0;i<ridge.length;i++) g.lineTo(i*(W/(ridge.length-1)), ridge[i]);
+  g.lineTo(W, HORIZON_Y); g.closePath(); g.fill();
+  g.fillStyle = P.mountain;
+  g.beginPath(); g.moveTo(0, HORIZON_Y);
+  for(let i=0;i<ridge.length;i++) g.lineTo(i*(W/(ridge.length-1)), ridge[i]+12+((i%4)*3));
+  g.lineTo(W, HORIZON_Y); g.closePath(); g.fill();
+}
+
+function drawGround(){
+  px(0, HORIZON_Y, W, 18, P.plateau);          // дальнее плато
+  px(0, HORIZON_Y, W, 2, P.plateauTop);
+  px(0, HORIZON_Y+18, W, 6, "#160823");        // обрыв
+  px(0, HORIZON_Y+24, W, 6, P.chasm);          // провал между планами
+  px(0, 196, W, H-196, P.ground);              // передний план
+  px(0, 196, W, 2, P.groundTop);
+  px(0, 198, W, 2, "#3a1a4a");
+  for(const s of specks) px(s.x, s.y, s.w, 1, P.groundSpeck);
+  for(let y=206; y<H; y+=7) { g.globalAlpha=.14; px(0,y,W,1,"#0d0518"); g.globalAlpha=1; }
+}
+
+/* ============================================================
+   ГРОМИЛА
+   ============================================================ */
+function bossPose(){
+  // 0 — покой, 1 — замах, 2 — бросок
+  let a1, a2;
+  if(boss.state === "windup"){
+    const t = Math.min(1, boss.t / WINDUP);
+    a1 = lerp(0.42, -2.35, t*t);
+    a2 = lerp(0.25, -0.85, t);
+  } else if(boss.state === "throw"){
+    const t = Math.min(1, boss.t / 0.22);
+    a1 = lerp(-2.35, 1.30, Math.min(1, t*2.2));
+    a2 = lerp(-0.85, 0.35, Math.min(1, t*2.2));
+  } else {
+    a1 = 0.42 + Math.sin(time*1.6)*0.06;
+    a2 = 0.25;
+  }
+  return {a1, a2};
+}
+
+function drawBoss(){
+  const bx = boss.x|0;
+  const feet = BOSS_FEET - (boss.roar>0 ? 1 : 0);
+  const breathe = Math.sin(time*1.7)*1;
+  const rc = boss.recoil;
+
+  // тень на плато
+  g.globalAlpha=.35; disc(bx, feet+2, 26, "#0d0518"); g.globalAlpha=1;
+
+  // ноги
+  px(bx-20, feet-30, 15, 30, P.bossSkinLo);
+  px(bx+5,  feet-30, 15, 30, P.bossSkinLo);
+  px(bx-20, feet-30, 4, 30, P.bossSkin);
+  px(bx+5,  feet-30, 4, 30, P.bossSkin);
+  px(bx-22, feet-3, 18, 4, P.dark);
+  px(bx+4,  feet-3, 18, 4, P.dark);
+
+  // набедренная повязка
+  px(bx-24, feet-40, 48, 14, P.bossCloth);
+  px(bx-24, feet-40, 48, 3,  P.bossClothLo);
+  px(bx-8,  feet-30, 16, 12, P.bossClothLo);
+
+  const ty = feet - 40 + breathe;   // низ торса
+  // торс
+  px(bx-22, ty-16, 44, 17, P.bossSkin);
+  px(bx-26, ty-32, 52, 17, P.bossSkin);
+  px(bx-26, ty-32, 8,  33, P.bossSkinHi);   // блик слева от солнца
+  px(bx+18, ty-32, 8,  33, P.bossSkinLo);
+  px(bx-14, ty-24, 28, 3, P.bossSkinLo);    // грудные
+  px(bx-14, ty-14, 28, 2, P.bossSkinLo);
+
+  // плечи
+  px(bx-34, ty-36, 14, 14, P.bossSkin);
+  px(bx+20, ty-36, 14, 14, P.bossSkin);
+
+  // голова
+  const hy = ty - 56 + breathe*0.5;
+  px(bx-8, hy+10, 16, 8, P.bossSkinLo);          // шея
+  px(bx-14, hy-14, 28, 24, P.bossSkin);
+  px(bx-14, hy-14, 6, 24, P.bossSkinHi);
+  px(bx-16, hy-6, 4, 8, P.bossSkin);             // уши
+  px(bx+12, hy-6, 4, 8, P.bossSkin);
+  px(bx-14, hy-6, 28, 4, P.bossSkinLo);          // надбровье
+  const eyeGlow = boss.roar>0 ? "#fff0b0" : P.bossEye;
+  px(bx-9, hy-1, 5, 4, eyeGlow);
+  px(bx+4, hy-1, 5, 4, eyeGlow);
+  px(bx-10, hy+6, 20, 6, P.dark);                // пасть
+  px(bx-7, hy+6, 3, 3, "#f2e9d8");
+  px(bx-1, hy+6, 3, 3, "#f2e9d8");
+  px(bx+5, hy+6, 3, 3, "#f2e9d8");
+  if(boss.roar>0) px(bx-8, hy+6, 16, 9, "#3a0d1c");
+
+  // руки
+  const {a1,a2} = bossPose();
+  const shR = {x: bx+27, y: ty-30};
+  const elR = {x: shR.x + Math.sin(a1)*20, y: shR.y + Math.cos(a1)*20};
+  const haR = {x: elR.x + Math.sin(a1+a2)*20, y: elR.y + Math.cos(a1+a2)*20};
+  const shL = {x: bx-27, y: ty-30};
+  const swing = Math.sin(time*1.6+1)*0.08;
+  const elL = {x: shL.x - Math.sin(0.42+swing)*20, y: shL.y + Math.cos(0.42+swing)*20};
+  const haL = {x: elL.x - Math.sin(0.6+swing)*19, y: elL.y + Math.cos(0.6+swing)*19};
+
+  limb(shL.x, shL.y, elL.x, elL.y, 6, P.bossSkinLo);
+  limb(elL.x, elL.y, haL.x, haL.y, 5, P.bossSkinLo);
+  px(haL.x-6, haL.y-4, 12, 10, P.bossSkin);
+
+  limb(shR.x-rc, shR.y, elR.x-rc, elR.y, 6, P.bossSkin);
+  limb(elR.x-rc, elR.y, haR.x-rc, haR.y, 5, P.bossSkinHi);
+  px(haR.x-7-rc, haR.y-5, 13, 11, P.bossSkin);
+
+  // камень в занесённой руке
+  if(boss.state === "windup" && boss.pending){
+    const big = boss.pending.kind === "boulder";
+    drawRock(haR.x-rc, haR.y-9, big?9:6, 0.7);
+  }
+
+  // «ГРР!» при рёве
+  if(boss.roar > 0){
+    g.globalAlpha = clamp(boss.roar, 0, 1);
+    px(bx+18, hy-26, 3, 3, P.magenta);
+    px(bx+26, hy-32, 3, 3, P.magenta);
+    px(bx-24, hy-30, 3, 3, P.magenta);
+    g.globalAlpha = 1;
+  }
+}
+
+/* ============================================================
+   ЯРИК
+   ============================================================ */
+function drawHero(){
+  if(hero.inv > 0 && Math.floor(hero.inv*14) % 2 === 0) return;
+  const x = hero.x|0, y = GROUND_Y;
+  const moving = Math.abs(hero.vx) > 4;
+  const f = moving ? (Math.floor(hero.walk*9) % 4) : 0;
+  const bob = (f===1||f===3) ? 1 : 0;
+
+  g.globalAlpha=.4; disc(x, y+1, 8, "#0d0518"); g.globalAlpha=1;
+
+  // ноги
+  if(moving){
+    const sw = (f===0||f===1) ? 1 : -1;
+    px(x-4+sw, y-7, 3, 7, P.pants);
+    px(x+1-sw, y-7, 3, 7, P.pants);
+    px(x-5+sw, y-1, 5, 2, P.dark);
+    px(x+1-sw, y-1, 5, 2, P.dark);
+  } else {
+    px(x-4, y-7, 3, 7, P.pants);
+    px(x+1, y-7, 3, 7, P.pants);
+    px(x-5, y-1, 5, 2, P.dark);
+    px(x, y-1, 5, 2, P.dark);
+  }
+
+  const ty = y - 7 - bob;
+  // туловище
+  px(x-5, ty-9, 10, 9, P.shirt);
+  px(x-5, ty-9, 3, 9, P.shirtLo);
+  px(x-5, ty-2, 10, 2, P.shirtLo);
+  // руки
+  const ar = moving ? Math.sin(hero.walk*9*Math.PI/2)*2 : 0;
+  px(x-7, ty-8+ar, 2, 6, P.shirt);
+  px(x+5, ty-8-ar, 2, 6, P.shirt);
+  px(x-7, ty-2+ar, 2, 2, P.skin);
+  px(x+5, ty-2-ar, 2, 2, P.skin);
+  // голова
+  px(x-4, ty-17, 8, 8, P.skin);
+  px(x-4, ty-19, 8, 4, P.hair);
+  px(x-5, ty-18, 1, 3, P.hair);
+  px(x+4, ty-18, 1, 3, P.hair);
+  px(x-1, ty-21, 3, 2, P.hair);            // вихор
+  const ex = hero.dir > 0 ? 1 : -1;
+  px(x-1+ex, ty-14, 2, 2, P.dark);
+  px(x-3+ex, ty-14, 1, 2, P.dark);
+  px(x-2, ty-10, 4, 1, "#d99a72");
+}
+
+/* ============================================================
+   КАМНИ
+   ============================================================ */
+function drawRock(x, y, r, sc){
+  const R = Math.max(2, Math.round(r*(sc||1)));
+  x = x|0; y = y|0;
+  disc(x, y, R, P.rockLo);
+  disc(x-Math.round(R*0.2), y-Math.round(R*0.22), Math.max(1,Math.round(R*0.78)), P.rock);
+  px(x-R*0.5, y-R*0.7, Math.max(1,R*0.4), Math.max(1,R*0.3), P.rockHi);
+  px(x+R*0.1, y+R*0.1, Math.max(1,R*0.35), Math.max(1,R*0.25), P.rockLo);
+}
+
+/* ============================================================
+   ЧАСТИЦЫ / ТЕКСТЫ / ВОРОНКИ
+   ============================================================ */
+function burst(x, y, n, spread, colors, up){
+  for(let i=0;i<n && parts.length<260;i++){
+    const a = rnd(-Math.PI, 0);
+    const sp = rnd(20, spread);
+    parts.push({
+      x, y,
+      vx: Math.cos(a)*sp,
+      vy: Math.sin(a)*sp*(up||1),
+      life: rnd(0.35,0.9), max:0.9,
+      s: Math.random()<0.3?2:1,
+      c: colors[(Math.random()*colors.length)|0]
+    });
+  }
+}
+function say(text, x, y, color, big){
+  texts.push({text, x, y, life: big?1.6:1.1, color, big:!!big});
+}
+
+/* ============================================================
+   ЛОГИКА БОЯ
+   ============================================================ */
+const WINDUP = 0.55;
+
+function difficulty(){
+  const D = curDiff();
+  wave = Math.floor(runTime * D.ramp / 16) + 1;
+  const k = Math.min(1, (wave-1)/9);
+  return {
+    k,
+    gap:    Math.max(0.30, (1.55 - k*1.05) * D.gap),
+    flight: Math.max(0.62, (1.55 - k*0.62) * D.flight),
+    volley: Math.min(0.90, (0.10 + k*0.40) * D.volley),
+    boulder:Math.min(0.55, (0.06 + k*0.20) * D.boulder)
+  };
+}
+
+function planThrow(){
+  const d = difficulty();
+  const kind = Math.random() < d.boulder ? "boulder" : "rock";
+  const count = (kind === "rock" && Math.random() < d.volley) ? (Math.random()<0.3?3:2) : 1;
+  const flight = d.flight * (kind==="boulder" ? 1.25 : 1) * rnd(0.92, 1.08);
+
+  // хаос: частично целится в Ярика, частично — куда попало
+  const chaos = 0.45 + Math.random()*0.3;
+  const predict = clamp(hero.x + hero.vx*flight*rnd(0.2,0.9), 30, W-30);
+  const center = clamp(predict*(1-chaos) + rnd(40, W-40)*chaos, 34, W-34);
+
+  const targets = [];
+  if(count === 1){
+    targets.push(center);
+  } else {
+    const spread = rnd(58, 96);
+    for(let i=0;i<count;i++){
+      targets.push(clamp(center + (i - (count-1)/2)*spread, 26, W-26));
+    }
+  }
+  return {kind, targets, flight};
+}
+
+function releaseThrow(plan){
+  const handX = boss.x + 34, handY = BOSS_FEET - 96;
+  for(const tx of plan.targets){
+    rocks.push({
+      kind: plan.kind,
+      x0: handX, y0: handY,
+      tx, t: 0,
+      dur: plan.flight,
+      r: plan.kind === "boulder" ? 13 : 7,
+      spin: rnd(-9, 9),
+      rot: 0,
+      x: handX, y: handY, sc: 0.4
+    });
+  }
+  boss.recoil = 4;
+  Audio5.sfx("throw");
+}
+
+function rockAt(rk){
+  const t = clamp(rk.t / rk.dur, 0, 1);
+  const arc = 46 + (rk.kind==="boulder" ? 16 : 0);
+  rk.x = lerp(rk.x0, rk.tx, t);
+  rk.y = lerp(rk.y0, GROUND_Y - 4, t) - Math.sin(Math.PI*t)*arc;
+  rk.sc = lerp(0.42, rk.kind==="boulder" ? 1.5 : 1.15, t);
+}
+
+function land(rk){
+  const big = rk.kind === "boulder";
+  const hitR = big ? 26 : 13;
+  const grazeR = hitR + 17;
+  const dist = Math.abs(hero.x - rk.tx);
+
+  shake = Math.max(shake, big ? 9 : 5);
+  craters.push({x: rk.tx, r: big?15:9, life: 5});
+  burst(rk.tx, GROUND_Y, big?26:14, big?150:105, [P.rock, P.rockLo, P.groundSpeck, P.rockHi], 1);
+  Audio5.sfx(big ? "boom" : "impact");
+
+  if(state !== "play") return;
+
+  if(dist < hitR && hero.inv <= 0){
+    hero.lives--;
+    hero.inv = 1.6;
+    flash = 1;
+    dodgeStreak = 0;
+    Audio5.sfx("hurt");
+    burst(hero.x, GROUND_Y-14, 18, 120, [P.magenta, P.bone, P.shirt], 1);
+    say(hero.lives > 0 ? "АЙ!" : "ОЙ-Й!", hero.x, GROUND_Y-40, P.magenta);
+    if(hero.lives <= 0) gameOver();
+  } else if(dist < grazeR){
+    dodgeStreak++;
+    const bonus = Math.round((50 + Math.min(150, dodgeStreak*10)) * curDiff().mult);
+    score += bonus;
+    Audio5.sfx("dodge");
+    say("+"+bonus, hero.x, GROUND_Y-42, P.cyan);
+    if(dodgeStreak === 5)  say("ЯРИК В УДАРЕ!", hero.x, GROUND_Y-58, P.orange, true);
+    if(dodgeStreak === 12) say("ГРОМИЛА В ЯРОСТИ!", W/2, 120, P.magenta, true);
+  }
+}
+
+function spawnHeart(){
+  hearts.push({x: rnd(50, W-50), y: -10, life: 9, got:false});
+}
+
+let newRecord = false;
+
+function gameOver(){
+  state = "over";
+  hero.alive = false;
+  Audio5.duck(0.25, 2.2);
+  Audio5.sfx("over");
+  shake = 12;
+  burst(hero.x, GROUND_Y-12, 30, 150, [P.shirt, P.hair, P.skin, P.magenta], 1);
+  const id = curDiff().id;
+  newRecord = Math.floor(score) > bests[id];
+  if(newRecord){
+    bests[id] = Math.floor(score);
+    try { localStorage.setItem("gromila.best." + id, String(bests[id])); } catch(e){}
+  }
+}
+
+function reset(){
+  runTime = 0; score = 0; wave = 1; dodgeStreak = 0; rageTimer = 0; heartTimer = 22;
+  newRecord = false;
+  hero.x = W/2; hero.vx = 0; hero.lives = curDiff().lives; hero.inv = 0; hero.alive = true; hero.walk = 0;
+  boss.x = W/2; boss.state = "wait"; boss.t = 0; boss.wait = 0.9; boss.pending = null; boss.roar = 0;
+  rocks = []; parts = []; craters = []; texts = []; hearts = [];
+  shake = 0; flash = 0; rageFlash = 0;
+}
+
+function startGame(){
+  diffIndex = menuIndex;
+  try { localStorage.setItem("gromila.diff", curDiff().id); } catch(e){}
+  reset();
+  state = "play";
+  Audio5.unlock();
+  Audio5.startMusic();
+  Audio5.sfx("start");
+  say(curDiff().name, W/2, 120, P.orange, true);
+}
+
+function toMenu(){
+  state = "menu";
+  menuIndex = diffIndex;
+  rocks = []; texts = [];
+  hero.x = W/2; hero.vx = 0; hero.inv = 0;
+  Audio5.duck(1, 0.3);
+}
+
+/* ============================================================
+   ОБНОВЛЕНИЕ
+   ============================================================ */
+let rageTimer = 0, heartTimer = 22;
+
+function update(dt){
+  time += dt;                                   // часы анимации идут всегда
+  const d = difficulty();
+  Audio5.setIntensity(state==="play" ? Math.min(1, d.k + (boss.roar>0?0.3:0)) : 0.05);
+
+  if(state === "play"){
+    runTime += dt;
+    score += dt * 10 * curDiff().mult;
+  }
+
+  // герой
+  const left  = keys["ArrowLeft"] || keys["KeyA"] || pressed.left;
+  const right = keys["ArrowRight"] || keys["KeyD"] || pressed.right;
+  const speed = 152;
+  let target = 0;
+  if(left && !right)  target = -speed;
+  if(right && !left)  target =  speed;
+  if(state === "over") target = 0;      // в меню Ярик уже бегает — можно размяться
+
+  hero.vx += (target - hero.vx) * Math.min(1, dt*16);
+  if(Math.abs(hero.vx) < 1) hero.vx = 0;
+  hero.x = clamp(hero.x + hero.vx*dt, HERO_MIN_X, HERO_MAX_X);
+  if(hero.x <= HERO_MIN_X || hero.x >= HERO_MAX_X) hero.vx *= 0.2;
+  if(target !== 0) hero.dir = target > 0 ? 1 : -1;
+  hero.walk += Math.abs(hero.vx)/speed * dt;
+  if(hero.inv > 0) hero.inv -= dt;
+
+  // босс: бродит и швыряет
+  boss.x += boss.drift * dt * (11 + d.k*9);
+  if(boss.x > W-90){ boss.x = W-90; boss.drift = -1; }
+  if(boss.x < 90)  { boss.x = 90;  boss.drift =  1; }
+  if(Math.random() < dt*0.25) boss.drift *= -1;
+
+  if(boss.recoil > 0) boss.recoil = Math.max(0, boss.recoil - dt*22);
+  if(boss.roar > 0)   boss.roar -= dt;
+
+  boss.t += dt;
+  if(boss.state === "wait" && boss.t >= boss.wait && state !== "over"){
+    boss.state = "windup"; boss.t = 0; boss.pending = planThrow();
+  } else if(boss.state === "windup" && boss.t >= WINDUP){
+    boss.state = "throw"; boss.t = 0; releaseThrow(boss.pending); boss.pending = null;
+  } else if(boss.state === "throw" && boss.t >= 0.22){
+    boss.state = "wait"; boss.t = 0;
+    boss.wait = d.gap * rnd(0.75, 1.3) * (state === "play" ? 1 : 1.7);
+  }
+
+  // приступ ярости
+  if(state === "play"){
+    rageTimer += dt;
+    if(rageTimer > 24){
+      rageTimer = 0;
+      boss.roar = 1.1; rageFlash = 0.8; shake = Math.max(shake, 6);
+      Audio5.sfx("roar");
+      say("ГР-Р-РОМИЛА В ЯРОСТИ", W/2, 108, P.magenta, true);
+      boss.wait = Math.min(boss.wait, 0.35);
+    }
+    heartTimer -= dt;
+    if(heartTimer <= 0){
+      heartTimer = rnd(24, 38);
+      if(hero.lives < 4) spawnHeart();
+    }
+  }
+
+  // камни
+  for(let i=rocks.length-1;i>=0;i--){
+    const rk = rocks[i];
+    rk.t += dt;
+    rk.rot += rk.spin*dt;
+    rockAt(rk);
+    if(rk.t >= rk.dur){ land(rk); rocks.splice(i,1); }
+  }
+
+  // сердечки
+  for(let i=hearts.length-1;i>=0;i--){
+    const ht = hearts[i];
+    ht.y = Math.min(GROUND_Y-30, ht.y + 42*dt);
+    ht.life -= dt;
+    if(Math.abs(ht.x - hero.x) < 12 && ht.y > GROUND_Y-46 && state === "play"){
+      hero.lives = Math.min(5, hero.lives+1);
+      Audio5.sfx("heart");
+      say("+1 ЖИЗНЬ", hero.x, GROUND_Y-52, P.cyan, true);
+      burst(ht.x, ht.y, 14, 70, [P.magenta, P.bone], -1);
+      hearts.splice(i,1); continue;
+    }
+    if(ht.life <= 0) hearts.splice(i,1);
+  }
+
+  // частицы, воронки, тексты
+  for(let i=parts.length-1;i>=0;i--){
+    const p = parts[i];
+    p.vy += 260*dt;
+    p.x += p.vx*dt; p.y += p.vy*dt;
+    if(p.y > GROUND_Y){ p.y = GROUND_Y; p.vy *= -0.35; p.vx *= 0.6; }
+    p.life -= dt;
+    if(p.life <= 0) parts.splice(i,1);
+  }
+  for(let i=craters.length-1;i>=0;i--){ craters[i].life -= dt; if(craters[i].life<=0) craters.splice(i,1); }
+  for(let i=texts.length-1;i>=0;i--){ texts[i].life -= dt; texts[i].y -= dt*14; if(texts[i].life<=0) texts.splice(i,1); }
+
+  shake = Math.max(0, shake - dt*26);
+  flash = Math.max(0, flash - dt*3);
+  rageFlash = Math.max(0, rageFlash - dt*1.6);
+}
+
+/* ============================================================
+   ОТРИСОВКА МИРА
+   ============================================================ */
+function render(){
+  g.save();
+  if(shake > 0.2) g.translate(Math.round(rnd(-shake,shake)*0.5), Math.round(rnd(-shake,shake)*0.35));
+
+  drawSky();
+  drawBoss();
+  drawGround();
+
+  // воронки
+  for(const c of craters){
+    const a = clamp(c.life/5, 0, 1);
+    g.globalAlpha = a*0.6;
+    disc(c.x, GROUND_Y+1, c.r, "#180a26");
+    disc(c.x, GROUND_Y, Math.max(1,c.r-3), "#221031");
+    g.globalAlpha = 1;
+  }
+
+  // маркеры падения
+  for(const rk of rocks){
+    const t = clamp(rk.t/rk.dur, 0, 1);
+    const big = rk.kind === "boulder";
+    const R = (big?26:14) * (0.45 + t*0.55);
+    const hot = t > 0.68;
+    const col = hot ? P.magenta : (big ? P.orange : P.cyan);
+    g.globalAlpha = 0.22 + t*0.3;
+    g.fillStyle = col;
+    g.beginPath(); g.ellipse(rk.tx, GROUND_Y+2, R, R*0.34, 0, 0, Math.PI*2); g.fill();
+    g.globalAlpha = 0.55 + t*0.45;
+    ring(rk.tx, GROUND_Y+2, R, R*0.34, col, hot ? 2 : 1);
+    if(hot){
+      g.globalAlpha = 0.5 + Math.sin(time*26)*0.4;
+      ring(rk.tx, GROUND_Y+2, R*0.55, R*0.19, P.bone, 1);
+    }
+    g.globalAlpha = 1;
+  }
+
+  // сердечки
+  for(const ht of hearts){
+    const blink = ht.life < 3 && Math.floor(ht.life*8)%2 === 0;
+    if(blink) continue;
+    const y = ht.y + Math.sin(time*5)*2;
+    px(ht.x-3, y-3, 2, 2, P.magenta); px(ht.x+1, y-3, 2, 2, P.magenta);
+    px(ht.x-4, y-1, 8, 3, P.magenta);
+    px(ht.x-3, y+2, 6, 2, P.magenta);
+    px(ht.x-1, y+4, 2, 1, P.magenta);
+    px(ht.x-3, y-2, 2, 1, "#ff8fb0");
+  }
+
+  // камни в полёте
+  for(const rk of rocks){
+    g.globalAlpha = 0.25;
+    disc(rk.x+2, rk.y+3, Math.max(2, rk.r*rk.sc*0.9), "#0d0518");
+    g.globalAlpha = 1;
+    drawRock(rk.x, rk.y, rk.r, rk.sc);
+  }
+
+  drawHero();
+
+  // частицы
+  for(const p of parts){
+    g.globalAlpha = clamp(p.life/p.max, 0, 1);
+    px(p.x, p.y, p.s, p.s, p.c);
+  }
+  g.globalAlpha = 1;
+
+  // вспышки
+  if(rageFlash > 0){ g.globalAlpha = rageFlash*0.22; px(0,0,W,H,P.magenta); g.globalAlpha = 1; }
+  if(flash > 0){ g.globalAlpha = flash*0.4; px(0,0,W,H,"#ff3355"); g.globalAlpha = 1; }
+
+  g.restore();
+
+  // всплывающие подписи — в мире, но текстом
+  for(const t of texts){
+    const a = clamp(t.life/(t.big?1.6:1.1), 0, 1);
+    g.globalAlpha = a;
+    g.font = (t.big ? "bold 11px " : "bold 8px ") + "monospace";
+    g.textAlign = "center";
+    g.fillStyle = "#160c22";
+    g.fillText(t.text, (t.x|0)+1, (t.y|0)+1);
+    g.fillStyle = t.color;
+    g.fillText(t.text, t.x|0, t.y|0);
+    g.globalAlpha = 1;
+  }
+}
+
+/* ============================================================
+   ИНТЕРФЕЙС (чёткий слой 960x540)
+   ============================================================ */
+function text(str, x, y, size, color, align, weight){
+  u.font = (weight||"bold") + " " + size + "px " + "ui-monospace, Consolas, 'Courier New', monospace";
+  u.textAlign = align || "left";
+  u.textBaseline = "alphabetic";
+  u.fillStyle = "rgba(10,5,18,.75)";
+  u.fillText(str, x+3, y+3);
+  u.fillStyle = color;
+  u.fillText(str, x, y);
+}
+function chromaText(str, x, y, size){
+  u.font = "bold " + size + "px ui-monospace, Consolas, 'Courier New', monospace";
+  u.textAlign = "center";
+  u.fillStyle = P.magenta; u.fillText(str, x-3, y);
+  u.fillStyle = P.cyan;    u.fillText(str, x+3, y);
+  u.fillStyle = P.bone;    u.fillText(str, x, y);
+}
+/* мягкая тёмная лента, чтобы текст читался поверх мира */
+function scrim(top, bottom, strength){
+  const gr = u.createLinearGradient(0, top, 0, bottom);
+  gr.addColorStop(0,    "rgba(10,5,18,0)");
+  gr.addColorStop(0.18, "rgba(10,5,18," + strength + ")");
+  gr.addColorStop(0.82, "rgba(10,5,18," + strength + ")");
+  gr.addColorStop(1,    "rgba(10,5,18,0)");
+  u.fillStyle = gr;
+  u.fillRect(0, top, uiC.width, bottom-top);
+}
+function heartIcon(x, y, s, filled){
+  u.fillStyle = filled ? P.magenta : "rgba(246,231,193,.22)";
+  const b = (a,bb,w,h) => u.fillRect(x+a*s, y+bb*s, w*s, h*s);
+  b(0,0,2,2); b(3,0,2,2); b(-1,2,7,3); b(0,5,5,2); b(1,7,3,1);
+}
+
+const menuRects = [];
+
+function drawUI(){
+  u.clearRect(0,0,uiC.width,uiC.height);
+
+  if(state === "play" || state === "over"){
+    const slots = Math.max(curDiff().lives, hero.lives);
+    for(let i=0;i<slots;i++) heartIcon(22 + i*34, 24, 3, i < hero.lives);
+    text("ОЧКИ " + String(Math.floor(score)).padStart(6,"0"), uiC.width-22, 44, 22, P.bone, "right");
+    text("ВОЛНА " + wave + "  ·  " + curDiff().name, uiC.width/2, 40, 18, P.cyan, "center");
+    text("ВРЕМЯ " + runTime.toFixed(1) + "с", uiC.width/2, 62, 13, "#a98cc0", "center");
+    if(dodgeStreak > 2) text("СЕРИЯ ×" + dodgeStreak, uiC.width-22, 68, 14, P.orange, "right");
+  }
+
+  if(state === "menu"){
+    u.fillStyle = "rgba(10,5,18,.34)";
+    u.fillRect(0,0,uiC.width,uiC.height);
+    scrim(40, 520, 0.82);
+
+    const pulse = 1 + Math.sin(time*3)*0.018;
+    u.save();
+    u.translate(uiC.width/2, 118);
+    u.scale(pulse, pulse);
+    chromaText("ГРОМИЛА", 0, 0, 66);
+    u.restore();
+    text("ЯРИК ПРОТИВ ВЕЛИКАНА", uiC.width/2, 152, 16, P.orange, "center");
+
+    text("ВЫБЕРИ СЛОЖНОСТЬ", uiC.width/2, 202, 14, "#8a6fa0", "center");
+
+    menuRects.length = 0;
+    const x0 = uiC.width/2 - 220, wRow = 440, hRow = 46;
+    for(let i=0;i<DIFFS.length;i++){
+      const d = DIFFS[i];
+      const y = 224 + i*hRow;
+      menuRects.push({x:x0, y, w:wRow, h:hRow-6, i});
+      const on = i === menuIndex;
+      if(on){
+        u.fillStyle = "rgba(55,230,212,.12)";
+        u.fillRect(x0, y, wRow, hRow-6);
+        u.fillStyle = P.cyan;
+        u.fillRect(x0, y, 4, hRow-6);
+      }
+      text(on ? "▶ " + d.name : "  " + d.name, x0+22, y+27, 22, on ? P.bone : "#8f74a6", "left");
+      const bs = bests[d.id];
+      text(bs > 0 ? String(bs) : "—", x0+wRow-20, y+27, 16, on ? P.cyan : "#6d5580", "right",
+           bs > 0 ? "bold" : "normal");
+    }
+
+    text(DIFFS[menuIndex].hint, uiC.width/2, 442, 15, "#b79ccb", "center", "normal");
+    if(Math.floor(time*1.6) % 2 === 0)
+      text("ПРОБЕЛ — В БОЙ", uiC.width/2, 480, 22, P.cyan, "center");
+
+    text("↑ ↓ — выбор   ·   ← → — бежать   ·   M — звук", uiC.width/2, 516, 13, "#6d5580", "center", "normal");
+  }
+
+  if(state === "over"){
+    u.fillStyle = "rgba(10,5,18,.4)";
+    u.fillRect(0,0,uiC.width,uiC.height);
+    scrim(140, 480, 0.84);
+    chromaText("ГРОМИЛА ПОБЕДИЛ", uiC.width/2, 200, 44);
+    text("ОЧКИ  " + Math.floor(score), uiC.width/2, 268, 30, P.bone, "center");
+    text("ПРОДЕРЖАЛСЯ  " + runTime.toFixed(1) + " с  ·  ВОЛНА " + wave + "  ·  " + curDiff().name,
+         uiC.width/2, 304, 16, "#b79ccb", "center", "normal");
+    text(newRecord ? "НОВЫЙ РЕКОРД!" : "РЕКОРД  " + bests[curDiff().id],
+         uiC.width/2, 344, 20, newRecord ? P.orange : "#8a6fa0", "center");
+    if(Math.floor(time*1.6) % 2 === 0)
+      text("ПРОБЕЛ — ЕЩЁ РАЗ", uiC.width/2, 416, 24, P.cyan, "center");
+    text("ESC — выбрать сложность", uiC.width/2, 452, 16, "#8a6fa0", "center", "normal");
+  }
+}
+
+/* ============================================================
+   ЦИКЛ
+   ============================================================ */
+let last = performance.now();
+function frame(now){
+  let dt = (now - last)/1000;
+  last = now;
+  if(dt > 0.05) dt = 0.05;      // после сворачивания вкладки не «телепортируем» мир
+  update(dt);
+  render();
+  drawUI();
+  requestAnimationFrame(frame);
+}
+
+/* ============================================================
+   ВВОД
+   ============================================================ */
+function action(){
+  Audio5.unlock();
+  if(!Audio5.isEnabled()) setSound(true);
+  if(state === "menu" || state === "over") startGame();
+}
+function moveMenu(step){
+  if(state !== "menu") return;
+  menuIndex = (menuIndex + step + DIFFS.length) % DIFFS.length;
+  Audio5.sfx("dodge");
+}
+window.addEventListener("keydown", e => {
+  if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Space"].includes(e.code)) e.preventDefault();
+  if(e.repeat && (e.code === "ArrowUp" || e.code === "ArrowDown")) return;
+  keys[e.code] = true;
+  if(state === "menu"){
+    if(e.code === "ArrowUp"   || e.code === "KeyW") moveMenu(-1);
+    if(e.code === "ArrowDown" || e.code === "KeyS") moveMenu(1);
+  }
+  if(e.code === "Space" || e.code === "Enter") action();
+  if(e.code === "Escape" && state !== "menu") toMenu();
+  if(e.code === "KeyM") setSound(!Audio5.isEnabled());
+});
+window.addEventListener("keyup", e => { keys[e.code] = false; });
+window.addEventListener("blur", () => { for(const k in keys) keys[k] = false; pressed.left = pressed.right = false; });
+
+const screenEl = document.getElementById("screen");
+function pointerAt(e){
+  const r = screenEl.getBoundingClientRect();
+  const px_ = ((e.touches ? e.touches[0].clientX : e.clientX) - r.left) / r.width;
+  pressed.left  = px_ < 0.5;
+  pressed.right = px_ >= 0.5;
+}
+screenEl.addEventListener("pointerdown", e => {
+  screenEl.setPointerCapture && screenEl.setPointerCapture(e.pointerId);
+  if(state === "menu"){
+    // координаты клика — в системе интерфейсного холста 960x540
+    const r = screenEl.getBoundingClientRect();
+    const ux = (e.clientX - r.left) / r.width  * uiC.width;
+    const uy = (e.clientY - r.top)  / r.height * uiC.height;
+    const row = menuRects.find(m => ux >= m.x && ux <= m.x+m.w && uy >= m.y && uy <= m.y+m.h);
+    if(row){
+      if(row.i !== menuIndex){ menuIndex = row.i; Audio5.sfx("dodge"); return; }
+    }
+    action();
+    return;
+  }
+  if(state === "over"){ action(); return; }
+  pointerAt(e);
+});
+screenEl.addEventListener("pointermove", e => { if(pressed.left || pressed.right) pointerAt(e); });
+["pointerup","pointercancel","pointerleave"].forEach(ev =>
+  screenEl.addEventListener(ev, () => { pressed.left = pressed.right = false; }));
+
+function hold(btn, side){
+  const on  = e => { e.preventDefault(); pressed[side] = true;  Audio5.unlock(); };
+  const off = e => { e.preventDefault(); pressed[side] = false; };
+  btn.addEventListener("pointerdown", on);
+  ["pointerup","pointercancel","pointerleave"].forEach(ev => btn.addEventListener(ev, off));
+}
+hold(document.getElementById("btnLeft"), "left");
+hold(document.getElementById("btnRight"), "right");
+
+const soundBtn = document.getElementById("btnSound");
+function setSound(on){
+  Audio5.setEnabled(on);
+  soundBtn.setAttribute("aria-pressed", on ? "true" : "false");
+  if(on) Audio5.startMusic();
+}
+soundBtn.addEventListener("click", () => setSound(!Audio5.isEnabled()));
+document.getElementById("btnMenu").addEventListener("click", () => {
+  if(state === "menu") action(); else toMenu();
+});
+
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
