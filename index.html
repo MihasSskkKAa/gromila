@@ -1481,6 +1481,34 @@ function canDropSnow(x, r){
   return (right - left) >= SNOW_LANE;
 }
 
+/* Проверки при падении не всё покрывают: Ярик может сам забежать между
+   комьями или ком может лечь ему под ноги. Если он оказался зажат — самый
+   мешающий ком тает, и выход всегда есть. */
+function freeTheLane(){
+  if(state !== "play" || !hazards.length) return;
+  let left = HERO_MIN_X - 10, right = HERO_MAX_X + 10, inside = null;
+  for(const h of hazards){
+    const a = h.x - snowHitR(h.r), b = h.x + snowHitR(h.r);
+    if(a <= hero.x && b >= hero.x) inside = h;
+    else if(b < hero.x) left  = Math.max(left, b);
+    else                right = Math.min(right, a);
+  }
+  if(!inside && right - left >= SNOW_LANE) return;
+
+  // тает тот, что стоит ближе всех к Ярику
+  let victim = inside;
+  if(!victim){
+    let best = Infinity;
+    for(const h of hazards){
+      const d = Math.abs(h.x - hero.x);
+      if(d < best){ best = d; victim = h; }
+    }
+  }
+  if(!victim) return;
+  burst(victim.x, GROUND_Y-4, 12, 70, curBoss().shot.dust, -1);
+  hazards.splice(hazards.indexOf(victim), 1);
+}
+
 /* Урон Ярику — от прилетевшего снаряда или от того, что лежит на земле */
 function hurtHero(){
   hero.lives--;
@@ -1755,6 +1783,7 @@ function update(dt){
     }
     if(hz.life <= 0) hazards.splice(i,1);
   }
+  freeTheLane();
   for(let i=texts.length-1;i>=0;i--){ texts[i].life -= dt; texts[i].y -= dt*14; if(texts[i].life<=0) texts.splice(i,1); }
 
   shake = Math.max(0, shake - dt*26);
