@@ -1086,6 +1086,7 @@ function releaseThrow(plan){
     rocks.push({
       kind: plan.kind,
       pin: !!plan.pin,
+      threat: false,          // стоял ли Ярик под этим камнем хоть раз
       x0: handX, y0: handY,
       tx, t: 0,
       dur: plan.flight,
@@ -1107,11 +1108,13 @@ function rockAt(rk){
   rk.sc = lerp(0.42, rk.kind==="boulder" ? 1.5 : 1.15, t);
 }
 
+const hitRadiusOf = rk => rk.kind === "boulder" ? 26 : 13;
+
 function land(rk){
   const big = rk.kind === "boulder";
-  const hitR = big ? 26 : 13;
-  const grazeR = hitR + 17;
+  const hitR = hitRadiusOf(rk);
   const dist = Math.abs(hero.x - rk.tx);
+  const inZone = dist < hitR;
 
   shake = Math.max(shake, big ? 9 : 5);
   craters.push({x: rk.tx, r: big?15:9, life: 5});
@@ -1120,7 +1123,7 @@ function land(rk){
 
   if(state !== "play") return;
 
-  if(dist < hitR && hero.inv <= 0){
+  if(inZone && hero.inv <= 0){
     hero.lives--;
     hero.inv = 1.6;
     flash = 1;
@@ -1130,7 +1133,8 @@ function land(rk){
     burst(hero.x, GROUND_Y-14, 18, 120, [P.magenta, P.bone, P.shirt], 1);
     say(hero.lives > 0 ? "АЙ!" : "ОЙ-Й!", hero.x, GROUND_Y-40, P.magenta);
     if(hero.lives <= 0) gameOver();
-  } else if(dist < grazeR){
+  } else if(!inZone && rk.threat){
+    // засчитываем только настоящий уход: камень шёл в Ярика, а он успел выйти
     dodgeStreak++;
     const bonus = Math.round((50 + Math.min(150, dodgeStreak*10)) * curDiff().mult);
     score += bonus;
@@ -1308,6 +1312,13 @@ function update(dt){
     rk.t += dt;
     rk.rot += rk.spin*dt;
     rockAt(rk);
+    /* Пока камень летит, помечаем те, под которыми Ярик реально стоял:
+       только уход из-под такого считается уворотом. Стоять в сторонке
+       и собирать бонусы за чужие камни больше не выйдет. */
+    if(state === "play" && hero.inv <= 0 && !rk.threat &&
+       Math.abs(hero.x - rk.tx) < hitRadiusOf(rk)){
+      rk.threat = true;
+    }
     if(rk.t >= rk.dur){ land(rk); rocks.splice(i,1); }
   }
 
