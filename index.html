@@ -363,18 +363,79 @@ function fitScreen(){
 /* ============================================================
    ПАЛИТРА
    ============================================================ */
-const SKY = ["#160a2b","#200d38","#2e1046","#431453","#5f1a5c","#84215f","#a92c5b","#cc4352","#e8664a","#f79150"];
+/* Ярик и служебные цвета интерфейса — общие для всех миров */
 const P = {
-  mountain:"#22103a", mountainFar:"#2b1444",
-  plateau:"#1d0c2f", plateauTop:"#3b1a52", chasm:"#0d0518",
-  ground:"#2c1339", groundTop:"#4d2360", groundSpeck:"#5f2c72",
-  bossSkin:"#5f7a3c", bossSkinLo:"#3f5527", bossSkinHi:"#86a45a",
-  bossCloth:"#7a4526", bossClothLo:"#542d17", bossEye:"#ff5a4a",
-  rock:"#8b8496", rockLo:"#5d5769", rockHi:"#b6afc2",
   shirt:"#3a7ad4", shirtLo:"#255296", pants:"#8a4a2a",
   skin:"#f3c79b", hair:"#f2b83c", dark:"#160c22",
   magenta:"#e0396b", cyan:"#37e6d4", bone:"#f6e7c1", orange:"#ff8b3d"
 };
+
+/* ============================================================
+   СОПЕРНИКИ
+   У каждого свой снаряд, своя манера и свой мир: небо, горизонт,
+   земля и подсветка маркеров подобраны под то, чем он швыряется.
+   ============================================================ */
+const BOSSES = [
+  {
+    id:"gromila", name:"ГРОМИЛА", ammo:"камни",
+    hint:"Швыряет камни с дальнего плато. Медленно, зато тяжело.",
+    kit:{fly:1.00, gap:1.00, hitR:13, bigR:26, arc:46, spin:9},
+    sfx:{throw:"throw", land:"impact", big:"boom"},
+    theme:{
+      sky:["#160a2b","#200d38","#2e1046","#431453","#5f1a5c","#84215f","#a92c5b","#cc4352","#e8664a","#f79150"],
+      orb:["#ffe08a","#ff9f4d","#ef5f5a"], orbBand:"#a92c5b", orbY:-26, orbR:0.215, orbX:0,
+      ridge:"spikes", ridgeFar:"#2b1444", ridgeNear:"#22103a",
+      plateau:"#1d0c2f", plateauTop:"#3b1a52", chasm:"#0d0518",
+      ground:"#2c1339", groundTop:"#4d2360", speck:"#5f2c72", scan:"#0d0518",
+      star:"#f6e7c1", weather:"none",
+      markCold:"#37e6d4", markBig:"#ff8b3d", markHot:"#e0396b", markAim:"#ff6b9d",
+      shade:"#0d0518", crater:["#180a26","#2a1240"]
+    },
+    body:{skin:"#5f7a3c", skinLo:"#3f5527", skinHi:"#86a45a", cloth:"#7a4526", clothLo:"#542d17", eye:"#ff5a4a"},
+    shot:{main:"#8b8496", lo:"#5d5769", hi:"#b6afc2", dust:["#8b8496","#5d5769","#5f2c72","#b6afc2"]}
+  },
+  {
+    id:"strelok", name:"СТРЕЛОК", ammo:"стрелы",
+    hint:"Бьёт стрелами из ночного леса. Летят быстро и жалят точно.",
+    kit:{fly:0.78, gap:0.92, hitR:10, bigR:20, arc:30, spin:0},
+    sfx:{throw:"twang", land:"thud", big:"boom"},
+    theme:{
+      sky:["#04070e","#071019","#0b1a24","#0f2530","#14313a","#1a3d42","#224a48","#2d5850","#3b6857","#4d7a5f"],
+      orb:["#eef6e0","#cfe3bd","#9dbc92"], orbBand:"#14313a", orbY:-40, orbR:0.13, orbX:-0.26,
+      ridge:"forest", ridgeFar:"#0a1a18", ridgeNear:"#06110f",
+      plateau:"#08150f", plateauTop:"#16301f", chasm:"#030806",
+      ground:"#0d1c12", groundTop:"#24422a", speck:"#31543a", scan:"#030806",
+      star:"#dff0d8", weather:"none",
+      markCold:"#8ce06a", markBig:"#ffd24a", markHot:"#ff5a4a", markAim:"#ff8f4a",
+      shade:"#030806", crater:["#05100a","#123018"]
+    },
+    body:{skin:"#4e8560", skinLo:"#31573c", skinHi:"#79b183", cloth:"#3b6152", clothLo:"#234134", eye:"#d4ff7a"},
+    shot:{main:"#c9a06a", lo:"#8a6a42", hi:"#efe0c0", dust:["#c9a06a","#8a6a42","#31543a","#efe0c0"]}
+  },
+  {
+    id:"snegovik", name:"СНЕГОВИК", ammo:"снежки",
+    hint:"Лепит снежки на морозе. Летят долго, накрывают широко.",
+    kit:{fly:1.22, gap:0.86, hitR:16, bigR:30, arc:58, spin:5},
+    sfx:{throw:"whoosh", land:"pack", big:"boom"},
+    theme:{
+      sky:["#0a1230","#101a42","#182456","#20306a","#2a3f7e","#365290","#44689d","#5681ab","#6d9cbb","#8ab6cb"],
+      orb:["#f2fbff","#d6ecfa","#a9cfe6"], orbBand:"#2a3f7e", orbY:-34, orbR:0.17, orbX:0.2,
+      ridge:"snowcaps", ridgeFar:"#243a63", ridgeNear:"#1a2c4d",
+      plateau:"#22355c", plateauTop:"#6f90b8", chasm:"#0c1430",
+      ground:"#9db9d4", groundTop:"#e6f2fb", speck:"#c2d8ea", scan:"#7d9cbb",
+      star:"#ffffff", weather:"snow",
+      markCold:"#1e4fa0", markBig:"#c0392b", markHot:"#e0396b", markAim:"#8e2f7a",
+      shade:"#6d8cae", crater:["#7f9dbb","#b3cde0"]
+    },
+    body:{skin:"#eef6fb", skinLo:"#b9cfe2", skinHi:"#ffffff", cloth:"#c0392b", clothLo:"#8d2a20", eye:"#1a2c4d"},
+    shot:{main:"#f4fbff", lo:"#bcd6e8", hi:"#ffffff", dust:["#ffffff","#dceaf6","#bcd6e8","#f4fbff"]}
+  }
+];
+
+let bossIndex = 0;
+let T = BOSSES[0].theme;          // палитра мира
+let B = BOSSES[0].body;           // палитра фигуры соперника
+const curBoss = () => BOSSES[bossIndex];
 
 /* ============================================================
    ЗВУК — чиптюн 80-х на Web Audio
@@ -545,6 +606,21 @@ const Audio5 = (function(){
           noise(t, 0.30, 0.34, 900, 0.6, 90);
           tone("sine", 110, t, 0.28, 0.40, sfxBus, 34);
           break;
+        case "twang":                       // спуск тетивы
+          tone("triangle", 330, t, 0.16, 0.22, sfxBus, 120);
+          noise(t, 0.10, 0.10, 2600, 2.0, 900);
+          break;
+        case "thud":                        // стрела вошла в землю
+          noise(t, 0.14, 0.22, 1600, 1.4, 300);
+          tone("sine", 160, t, 0.14, 0.24, sfxBus, 60);
+          break;
+        case "whoosh":                      // снежок пошёл по дуге
+          noise(t, 0.26, 0.12, 500, 0.7, 1500);
+          break;
+        case "pack":                        // мягкий шлепок снега
+          noise(t, 0.22, 0.26, 400, 0.5, 140);
+          tone("sine", 90, t, 0.18, 0.22, sfxBus, 40);
+          break;
         case "boom":
           noise(t, 0.50, 0.42, 700, 0.5, 60);
           tone("sine", 80, t, 0.45, 0.50, sfxBus, 28);
@@ -601,14 +677,28 @@ function cloudHeaders(extra){
   }, extra || {});
 }
 
+/* В базе может не быть колонки boss — тогда зачёт общий для всех соперников.
+   Выясняем это по первому же ответу сервера и дальше не спрашиваем. */
+let cloudHasBoss = null;               // null — пока не знаем, true/false — выяснили
+const bossFilter = () => cloudHasBoss ? "&boss=eq." + encodeURIComponent(curBoss().id) : "";
+
 /* Отправка результата. Сеть может отвалиться — игре это безразлично. */
 function cloudSubmit(name, value, diffId){
   if(!cloudOn() || !name || value <= 0) return Promise.resolve(false);
-  return fetch(CLOUD.url + "/rest/v1/" + CLOUD.table, {
+  const row = {name: name.slice(0,12), score: Math.floor(value), difficulty: diffId};
+  const post = body => fetch(CLOUD.url + "/rest/v1/" + CLOUD.table, {
     method: "POST",
     headers: cloudHeaders({"Prefer": "return=minimal"}),
-    body: JSON.stringify({name: name.slice(0,12), score: Math.floor(value), difficulty: diffId})
-  }).then(r => r.ok).catch(() => false);
+    body: JSON.stringify(body)
+  });
+  if(cloudHasBoss === false) return post(row).then(r => r.ok).catch(() => false);
+  return post(Object.assign({boss: curBoss().id}, row))
+    .then(r => {
+      if(r.ok){ cloudHasBoss = true; return true; }
+      cloudHasBoss = false;                       // колонки нет — шлём по-старому
+      return post(row).then(r2 => r2.ok);
+    })
+    .catch(() => false);
 }
 
 /* Сколько строк подходит под условие. Само число приходит заголовком
@@ -628,20 +718,30 @@ function cloudCount(query){
 /* Место в общем зачёте: сколько результатов строго лучше нашего, плюс один */
 function cloudRank(value, diffId){
   const v = Math.floor(value);
-  const d = "difficulty=eq." + encodeURIComponent(diffId);
+  const d = "difficulty=eq." + encodeURIComponent(diffId) + bossFilter();
   return Promise.all([
     cloudCount("?select=id&" + d + "&score=gt." + v),
     cloudCount("?select=id&" + d)
   ]).then(([better, total]) => ({place: better + 1, total}));
 }
 
-/* Десятка лучших по выбранной сложности */
+/* Десятка лучших по выбранной сложности и текущему сопернику */
 function cloudTop(diffId){
   if(!cloudOn()) return Promise.reject(new Error("off"));
-  const q = "?select=name,score&difficulty=eq." + encodeURIComponent(diffId) +
-            "&order=score.desc&limit=10";
-  return fetch(CLOUD.url + "/rest/v1/" + CLOUD.table + q, {headers: cloudHeaders()})
-    .then(r => { if(!r.ok) throw new Error("http " + r.status); return r.json(); });
+  const base = "?select=name,score&difficulty=eq." + encodeURIComponent(diffId) +
+               "&order=score.desc&limit=10";
+  const get = q => fetch(CLOUD.url + "/rest/v1/" + CLOUD.table + q, {headers: cloudHeaders()});
+  const tryBoss = cloudHasBoss !== false;
+  return get(base + (tryBoss ? "&boss=eq." + encodeURIComponent(curBoss().id) : ""))
+    .then(r => {
+      if(r.ok){ if(tryBoss) cloudHasBoss = true; return r.json(); }
+      if(!tryBoss) throw new Error("http " + r.status);
+      cloudHasBoss = false;                        // колонки нет — читаем общий список
+      return get(base).then(r2 => {
+        if(!r2.ok) throw new Error("http " + r2.status);
+        return r2.json();
+      });
+    });
 }
 
 /* ============================================================
@@ -681,8 +781,32 @@ const boss = { x: W/2, drift: 1, state: "wait", t: 0, wait: 1.2, pending: null, 
 let rocks = [], parts = [], craters = [], texts = [], hearts = [];
 let aimNow = 0, aimAnnounced = 0;   // насколько Громила пристрелялся и о чём уже предупредил
 
-/* Рекорд помнит и очки, и того, кто их поставил.
+/* Рекорд помнит и очки, и того, кто их поставил, и считается отдельно
+   для каждого соперника: снежки и стрелы — разные испытания.
    Старые сохранения хранили просто число — поднимаем их без потери. */
+const bestKey = (bossId, diffId) =>
+  bossId === "gromila" ? "gromila.best." + diffId          // прежний ключ не трогаем
+                       : "gromila.best." + bossId + "." + diffId;
+
+function loadBests(){
+  for(const d of DIFFS){
+    let raw = null;
+    try { raw = localStorage.getItem(bestKey(curBoss().id, d.id)); } catch(e){}
+    let rec = {score:0, name:""};
+    if(raw){
+      if(raw.charAt(0) === "{"){
+        try {
+          const parsed = JSON.parse(raw);
+          rec = {score: parseInt(parsed.score,10) || 0, name: String(parsed.name || "")};
+        } catch(e){}
+      } else {
+        rec = {score: parseInt(raw,10) || 0, name: ""};
+      }
+    }
+    bests[d.id] = rec;
+  }
+}
+
 for(const d of DIFFS){
   let raw = null;
   try { raw = localStorage.getItem("gromila.best." + d.id); } catch(e){}
@@ -707,6 +831,12 @@ try {
   const i = DIFFS.findIndex(d => d.id === saved);
   if(i >= 0){ diffIndex = i; menuIndex = i; }
 } catch(e){}
+try {
+  const savedBoss = localStorage.getItem("gromila.boss");
+  const bi = BOSSES.findIndex(b => b.id === savedBoss);
+  if(bi >= 0){ bossIndex = bi; T = BOSSES[bi].theme; B = BOSSES[bi].body; }
+} catch(e){}
+loadBests();
 const curDiff = () => DIFFS[diffIndex];
 
 const keys = Object.create(null);
@@ -737,7 +867,23 @@ function loadBoard(){
 
 /* декоративный шум — фиксированный, чтобы фон не «кипел»; пересобирается при смене формата */
 let stars = [], specks = [], ridge = [];
+let flakes = [];
+function drawWeather(){
+  if(T.weather !== "snow") return;
+  for(const f of flakes){
+    f.y += f.v*0.016*60;
+    f.x += Math.sin(time*f.sway + f.p)*0.25;
+    if(f.y > H){ f.y = -2; f.x = Math.random()*W; }
+    if(f.x < -2) f.x = W; else if(f.x > W+2) f.x = 0;
+    px(f.x, f.y, f.s, f.s, f.y < HORIZON_Y ? "#cfe4f5" : "#ffffff");
+  }
+}
+
 function buildScenery(){
+  flakes = Array.from({length:70}, () => ({
+    x: Math.random()*W, y: Math.random()*H, v: 12 + Math.random()*26,
+    s: Math.random() < 0.3 ? 2 : 1, sway: 1.2 + Math.random()*1.6, p: Math.random()*6.28
+  }));
   stars  = Array.from({length:70},  () => ({x:Math.random()*W, y:Math.random()*HORIZON_Y*0.78, p:Math.random()*6.28, s:Math.random()<0.25?2:1}));
   specks = Array.from({length:120}, () => ({x:Math.random()*W, y:GROUND_TOP+Math.random()*(H-GROUND_TOP), w:Math.random()<0.3?2:1}));
   ridge  = Array.from({length:40},  (_,i) => HORIZON_Y-20 - Math.abs(Math.sin(i*1.7))*26 - (i%3)*3);
@@ -771,6 +917,7 @@ function ring(cx,cy,rx,ry,c,thick){
    ФОН
    ============================================================ */
 function drawSky(){
+  const SKY = T.sky;
   const bandH = Math.ceil(HORIZON_Y / SKY.length);
   for(let i=0;i<SKY.length;i++) px(0, i*bandH, W, bandH, SKY[i]);
 
@@ -779,49 +926,78 @@ function drawSky(){
     const tw = 0.45 + 0.55*Math.sin(time*2 + s.p);
     if(tw > 0.55){
       g.globalAlpha = Math.min(1, (tw-0.5)*1.6);
-      px(s.x, s.y, s.s, s.s, "#f6e7c1");
+      px(s.x, s.y, s.s, s.s, T.star);
       g.globalAlpha = 1;
     }
   }
 
-  // солнце с полосами — синтвейв
-  const cx = Math.round(W/2), cy = HORIZON_Y - 26, r = Math.round(H*0.215);
-  disc(cx, cy, r, "#ffca5c");
+  // светило: закатное солнце, лесная луна или морозный диск
+  const cx = Math.round(W/2 + W*(T.orbX||0)), cy = HORIZON_Y + T.orbY, r = Math.round(H*T.orbR);
+  disc(cx, cy, r, T.orb[0]);
   for(let y=-r;y<=r;y++){
     const w = Math.floor(Math.sqrt(Math.max(0, r*r - y*y)));
     if(!w) continue;
     const t = (y+r)/(2*r);
-    const col = t<0.35 ? "#ffe08a" : t<0.62 ? "#ff9f4d" : "#ef5f5a";
-    g.fillStyle = col;
+    g.fillStyle = t<0.35 ? T.orb[0] : t<0.62 ? T.orb[1] : T.orb[2];
     g.fillRect((cx-w)|0, (cy+y)|0, w*2, 1);
   }
   for(let y=6, gap=3; y<r; gap+=1.2, y+=gap+2){
-    const yy = cy + y;
     const w = Math.floor(Math.sqrt(Math.max(0, r*r - y*y)));
-    px(cx-w, yy, w*2, Math.max(1, gap|0), SKY[SKY.length-3]);
+    px(cx-w, cy+y, w*2, Math.max(1, gap|0), T.orbBand);
   }
 
-  // горы
-  g.fillStyle = P.mountainFar;
+  drawRidge();
+}
+
+/* Линия горизонта у каждого своя: скалы, еловый лес или заснеженные пики */
+function drawRidge(){
+  const step = W/(ridge.length-1);
+  if(T.ridge === "forest"){
+    for(let pass=0; pass<2; pass++){
+      g.fillStyle = pass ? T.ridgeNear : T.ridgeFar;
+      const drop = pass ? 14 : 0;
+      for(let i=0;i<ridge.length;i++){
+        const x = i*step, top = ridge[i] + drop + (i%3)*4;
+        const halfBase = 9 + (i%4)*2;
+        g.beginPath();
+        g.moveTo(x, top);
+        g.lineTo(x - halfBase, HORIZON_Y);
+        g.lineTo(x + halfBase, HORIZON_Y);
+        g.closePath(); g.fill();
+      }
+    }
+    return;
+  }
+  g.fillStyle = T.ridgeFar;
   g.beginPath(); g.moveTo(0, HORIZON_Y);
-  for(let i=0;i<ridge.length;i++) g.lineTo(i*(W/(ridge.length-1)), ridge[i]);
+  for(let i=0;i<ridge.length;i++) g.lineTo(i*step, ridge[i]);
   g.lineTo(W, HORIZON_Y); g.closePath(); g.fill();
-  g.fillStyle = P.mountain;
+  g.fillStyle = T.ridgeNear;
   g.beginPath(); g.moveTo(0, HORIZON_Y);
-  for(let i=0;i<ridge.length;i++) g.lineTo(i*(W/(ridge.length-1)), ridge[i]+12+((i%4)*3));
+  for(let i=0;i<ridge.length;i++) g.lineTo(i*step, ridge[i]+12+((i%4)*3));
   g.lineTo(W, HORIZON_Y); g.closePath(); g.fill();
+
+  if(T.ridge === "snowcaps"){          // снежные шапки на вершинах
+    g.fillStyle = T.groundTop;
+    for(let i=0;i<ridge.length;i++){
+      const x = i*step, y = ridge[i];
+      g.beginPath();
+      g.moveTo(x, y); g.lineTo(x-5, y+7); g.lineTo(x+5, y+7);
+      g.closePath(); g.fill();
+    }
+  }
 }
 
 function drawGround(){
   const gap = GROUND_TOP - HORIZON_Y;           // провал между планами
-  px(0, HORIZON_Y, W, gap, P.chasm);
-  px(0, HORIZON_Y, W, Math.round(gap*0.65), P.plateau);   // дальнее плато
-  px(0, HORIZON_Y, W, 2, P.plateauTop);
-  px(0, GROUND_TOP, W, H-GROUND_TOP, P.ground);           // передний план
-  px(0, GROUND_TOP, W, 2, P.groundTop);
-  px(0, GROUND_TOP+2, W, 2, "#3a1a4a");
-  for(const s of specks) px(s.x, s.y, s.w, 1, P.groundSpeck);
-  for(let y=GROUND_TOP+10; y<H; y+=7) { g.globalAlpha=.14; px(0,y,W,1,"#0d0518"); g.globalAlpha=1; }
+  px(0, HORIZON_Y, W, gap, T.chasm);
+  px(0, HORIZON_Y, W, Math.round(gap*0.65), T.plateau);   // дальнее плато
+  px(0, HORIZON_Y, W, 2, T.plateauTop);
+  px(0, GROUND_TOP, W, H-GROUND_TOP, T.ground);           // передний план
+  px(0, GROUND_TOP, W, 2, T.groundTop);
+  px(0, GROUND_TOP+2, W, 2, T.speck);
+  for(const s of specks) px(s.x, s.y, s.w, 1, T.speck);
+  for(let y=GROUND_TOP+10; y<H; y+=7) { g.globalAlpha=.14; px(0,y,W,1,T.scan); g.globalAlpha=1; }
 }
 
 /* ============================================================
@@ -846,53 +1022,159 @@ function bossPose(){
 }
 
 function drawBoss(){
+  if(curBoss().id === "strelok")  return drawStrelok();
+  if(curBoss().id === "snegovik") return drawSnegovik();
+  drawGromila();
+}
+
+/* насколько соперник «взведён»: 0 — покой, 1 — оружие изготовлено */
+function windupT(){
+  if(boss.state === "windup") return Math.min(1, boss.t / WINDUP);
+  if(boss.state === "throw")  return Math.max(0, 1 - boss.t/0.22);
+  return 0;
+}
+
+/* ---------------- СТРЕЛОК: худой лучник из ночного леса ---------------- */
+function drawStrelok(){
+  const bx = boss.x|0, feet = BOSS_FEET;
+  const t = windupT();
+  const breathe = Math.sin(time*1.9)*1;
+
+  g.globalAlpha=.35; disc(bx, feet+2, 22, T.shade); g.globalAlpha=1;
+
+  px(bx-14, feet-28, 10, 28, B.skinLo);           // ноги
+  px(bx+4,  feet-28, 10, 28, B.skinLo);
+  px(bx-16, feet-3, 13, 4, P.dark);
+  px(bx+3,  feet-3, 13, 4, P.dark);
+
+  const ty = feet - 30 + breathe;
+  px(bx-16, ty-34, 32, 34, B.skin);               // торс
+  px(bx-16, ty-34, 6,  34, B.skinHi);
+  px(bx-20, ty-36, 40, 12, B.cloth);              // плащ на плечах
+  px(bx-20, ty-36, 40, 3,  B.clothLo);
+  px(bx-9,  ty-24, 18, 20, B.clothLo);            // ремень колчана
+  px(bx+12, ty-40, 7, 20, B.cloth);               // колчан за спиной
+  for(let i=0;i<3;i++) px(bx+13+i*2, ty-46, 1, 7, curBoss().shot.main);
+
+  const hy = ty - 52 + breathe*0.5;               // голова в капюшоне
+  px(bx-10, hy-14, 20, 22, B.cloth);
+  px(bx-10, hy-14, 5, 22, B.clothLo);
+  px(bx-7, hy-2, 14, 10, B.skin);                 // лицо в тени капюшона
+  px(bx-7, hy-2, 14, 3, B.skinLo);
+  const eye = boss.roar>0 ? "#ffffff" : (aimNow>0.9 ? "#eaff8a" : B.eye);
+  px(bx-5, hy+2, 4, 3, eye);
+  px(bx+2, hy+2, 4, 3, eye);
+
+  // лук: держит слева, тетиву тянет правой — при замахе оттягивает сильнее
+  const bowX = bx - 24, bowY = ty - 22;
+  const pull = 3 + t*11;
+  g.strokeStyle = curBoss().shot.lo; g.lineWidth = 3;
+  g.beginPath(); g.arc(bowX+6, bowY, 18, Math.PI*0.62, Math.PI*1.38, true); g.stroke();
+  g.strokeStyle = "#e8e2cf"; g.lineWidth = 1;
+  g.beginPath();
+  g.moveTo(bowX+4, bowY-17); g.lineTo(bowX+4+pull, bowY); g.lineTo(bowX+4, bowY+17);
+  g.stroke();
+  limb(bx-14, ty-30, bowX+6, bowY, 4, B.skin);                 // рука с луком
+  limb(bx+12, ty-30, bowX+6+pull+4, bowY, 4, B.skinLo);        // рука на тетиве
+  if(boss.state === "windup"){                                  // наложенная стрела
+    px(bowX+4, bowY-1, 22, 2, curBoss().shot.main);
+    px(bowX+24, bowY-2, 4, 4, curBoss().shot.hi);
+  }
+}
+
+/* ---------------- СНЕГОВИК: три шара, ведро и морковка ---------------- */
+function drawSnegovik(){
+  const bx = boss.x|0, feet = BOSS_FEET;
+  const t = windupT();
+  const wob = Math.sin(time*1.4)*1.5;
+
+  g.globalAlpha=.3; disc(bx, feet+2, 30, T.shade); g.globalAlpha=1;
+
+  disc(bx, feet-18, 26, B.skin);                  // нижний шар
+  disc(bx-6, feet-22, 20, B.skinHi);
+  disc(bx, feet-24, 26, B.skinLo); disc(bx, feet-26, 24, B.skin);
+
+  const my = feet - 56 + wob;
+  disc(bx, my, 20, B.skin);                       // средний шар
+  disc(bx-5, my-4, 14, B.skinHi);
+  px(bx-4, my-4, 3, 3, B.eye);                    // пуговицы
+  px(bx-1, my+5, 3, 3, B.eye);
+
+  const hy = my - 30 + wob;
+  disc(bx, hy, 15, B.skin);                       // голова
+  disc(bx-4, hy-4, 10, B.skinHi);
+  px(bx-16, hy-16, 32, 5, B.clothLo);             // поля ведра
+  px(bx-12, hy-30, 24, 15, B.cloth);              // ведро
+  px(bx-12, hy-30, 24, 3, B.clothLo);
+  const eye = boss.roar>0 ? "#ff5a4a" : (aimNow>0.9 ? "#2f6fd0" : B.eye);
+  px(bx-8, hy-5, 4, 4, eye);
+  px(bx+4, hy-5, 4, 4, eye);
+  px(bx-2, hy+1, 10, 3, "#e8763a");               // морковка
+  px(bx+8, hy+2, 4, 2, "#c85a24");
+  for(let i=0;i<4;i++) px(bx-7+i*4, hy+8, 2, 2, B.eye);   // рот-камушки
+
+  // руки-ветки: правая заносится для броска
+  const shR = {x: bx+18, y: my-2}, shL = {x: bx-18, y: my-2};
+  const angR = lerp(0.5, -1.9, t), angL = 0.6 + Math.sin(time*1.4)*0.1;
+  const elR = {x: shR.x + Math.sin(angR)*16, y: shR.y + Math.cos(angR)*16};
+  const haR = {x: elR.x + Math.sin(angR-0.5)*14, y: elR.y + Math.cos(angR-0.5)*14};
+  const elL = {x: shL.x - Math.sin(angL)*16, y: shL.y + Math.cos(angL)*16};
+  limb(shL.x, shL.y, elL.x, elL.y, 2, "#6b4a2c");
+  px(elL.x-4, elL.y+2, 4, 2, "#6b4a2c");
+  limb(shR.x, shR.y, elR.x, elR.y, 2, "#6b4a2c");
+  limb(elR.x, elR.y, haR.x, haR.y, 2, "#7d5836");
+  if(boss.state === "windup") disc(haR.x, haR.y-4, 6, curBoss().shot.main);
+}
+
+/* ---------------- ГРОМИЛА: тот самый огр с камнями ---------------- */
+function drawGromila(){
   const bx = boss.x|0;
   const feet = BOSS_FEET - (boss.roar>0 ? 1 : 0);
   const breathe = Math.sin(time*1.7)*1;
   const rc = boss.recoil;
 
   // тень на плато
-  g.globalAlpha=.35; disc(bx, feet+2, 26, "#0d0518"); g.globalAlpha=1;
+  g.globalAlpha=.35; disc(bx, feet+2, 26, T.shade); g.globalAlpha=1;
 
   // ноги
-  px(bx-20, feet-30, 15, 30, P.bossSkinLo);
-  px(bx+5,  feet-30, 15, 30, P.bossSkinLo);
-  px(bx-20, feet-30, 4, 30, P.bossSkin);
-  px(bx+5,  feet-30, 4, 30, P.bossSkin);
+  px(bx-20, feet-30, 15, 30, B.skinLo);
+  px(bx+5,  feet-30, 15, 30, B.skinLo);
+  px(bx-20, feet-30, 4, 30, B.skin);
+  px(bx+5,  feet-30, 4, 30, B.skin);
   px(bx-22, feet-3, 18, 4, P.dark);
   px(bx+4,  feet-3, 18, 4, P.dark);
 
   // набедренная повязка
-  px(bx-24, feet-40, 48, 14, P.bossCloth);
-  px(bx-24, feet-40, 48, 3,  P.bossClothLo);
-  px(bx-8,  feet-30, 16, 12, P.bossClothLo);
+  px(bx-24, feet-40, 48, 14, B.cloth);
+  px(bx-24, feet-40, 48, 3,  B.clothLo);
+  px(bx-8,  feet-30, 16, 12, B.clothLo);
 
   const ty = feet - 40 + breathe;   // низ торса
   // торс
-  px(bx-22, ty-16, 44, 17, P.bossSkin);
-  px(bx-26, ty-32, 52, 17, P.bossSkin);
-  px(bx-26, ty-32, 8,  33, P.bossSkinHi);   // блик слева от солнца
-  px(bx+18, ty-32, 8,  33, P.bossSkinLo);
-  px(bx-14, ty-24, 28, 3, P.bossSkinLo);    // грудные
-  px(bx-14, ty-14, 28, 2, P.bossSkinLo);
+  px(bx-22, ty-16, 44, 17, B.skin);
+  px(bx-26, ty-32, 52, 17, B.skin);
+  px(bx-26, ty-32, 8,  33, B.skinHi);   // блик слева от солнца
+  px(bx+18, ty-32, 8,  33, B.skinLo);
+  px(bx-14, ty-24, 28, 3, B.skinLo);    // грудные
+  px(bx-14, ty-14, 28, 2, B.skinLo);
 
   // плечи
-  px(bx-34, ty-36, 14, 14, P.bossSkin);
-  px(bx+20, ty-36, 14, 14, P.bossSkin);
+  px(bx-34, ty-36, 14, 14, B.skin);
+  px(bx+20, ty-36, 14, 14, B.skin);
 
   // голова
   const hy = ty - 56 + breathe*0.5;
-  px(bx-8, hy+10, 16, 8, P.bossSkinLo);          // шея
-  px(bx-14, hy-14, 28, 24, P.bossSkin);
-  px(bx-14, hy-14, 6, 24, P.bossSkinHi);
-  px(bx-16, hy-6, 4, 8, P.bossSkin);             // уши
-  px(bx+12, hy-6, 4, 8, P.bossSkin);
-  px(bx-14, hy-6, 28, 4, P.bossSkinLo);          // надбровье
+  px(bx-8, hy+10, 16, 8, B.skinLo);          // шея
+  px(bx-14, hy-14, 28, 24, B.skin);
+  px(bx-14, hy-14, 6, 24, B.skinHi);
+  px(bx-16, hy-6, 4, 8, B.skin);             // уши
+  px(bx+12, hy-6, 4, 8, B.skin);
+  px(bx-14, hy-6, 28, 4, B.skinLo);          // надбровье
   // чем лучше пристрелялся, тем ярче горят глаза
   const eyeGlow = boss.roar>0 ? "#fff0b0"
                 : aimNow > 0.9  ? "#ffd24a"
                 : aimNow > 0.45 ? "#ff8a3d"
-                                : P.bossEye;
+                                : B.eye;
   px(bx-9, hy-1, 5, 4, eyeGlow);
   px(bx+4, hy-1, 5, 4, eyeGlow);
   px(bx-10, hy+6, 20, 6, P.dark);                // пасть
@@ -911,18 +1193,18 @@ function drawBoss(){
   const elL = {x: shL.x - Math.sin(0.42+swing)*20, y: shL.y + Math.cos(0.42+swing)*20};
   const haL = {x: elL.x - Math.sin(0.6+swing)*19, y: elL.y + Math.cos(0.6+swing)*19};
 
-  limb(shL.x, shL.y, elL.x, elL.y, 6, P.bossSkinLo);
-  limb(elL.x, elL.y, haL.x, haL.y, 5, P.bossSkinLo);
-  px(haL.x-6, haL.y-4, 12, 10, P.bossSkin);
+  limb(shL.x, shL.y, elL.x, elL.y, 6, B.skinLo);
+  limb(elL.x, elL.y, haL.x, haL.y, 5, B.skinLo);
+  px(haL.x-6, haL.y-4, 12, 10, B.skin);
 
-  limb(shR.x-rc, shR.y, elR.x-rc, elR.y, 6, P.bossSkin);
-  limb(elR.x-rc, elR.y, haR.x-rc, haR.y, 5, P.bossSkinHi);
-  px(haR.x-7-rc, haR.y-5, 13, 11, P.bossSkin);
+  limb(shR.x-rc, shR.y, elR.x-rc, elR.y, 6, B.skin);
+  limb(elR.x-rc, elR.y, haR.x-rc, haR.y, 5, B.skinHi);
+  px(haR.x-7-rc, haR.y-5, 13, 11, B.skin);
 
   // камень в занесённой руке
   if(boss.state === "windup" && boss.pending){
     const big = boss.pending.kind === "boulder";
-    drawRock(haR.x-rc, haR.y-9, big?9:6, 0.7);
+    drawShot(haR.x-rc, haR.y-9, big?9:6, 0.7);
   }
 
   // «ГРР!» при рёве
@@ -945,7 +1227,7 @@ function drawHero(){
   const f = moving ? (Math.floor(hero.walk*9) % 4) : 0;
   const bob = (f===1||f===3) ? 1 : 0;
 
-  g.globalAlpha=.4; disc(x, y+1, 8, "#0d0518"); g.globalAlpha=1;
+  g.globalAlpha=.4; disc(x, y+1, 8, T.shade); g.globalAlpha=1;
 
   // ноги
   if(moving){
@@ -987,13 +1269,38 @@ function drawHero(){
 /* ============================================================
    КАМНИ
    ============================================================ */
-function drawRock(x, y, r, sc){
+/* Снаряд рисуется по-своему у каждого соперника, но всегда с учётом
+   масштаба: чем ближе к земле, тем крупнее — так читается глубина. */
+function drawShot(x, y, r, sc, rk){
+  const S = curBoss().shot;
   const R = Math.max(2, Math.round(r*(sc||1)));
   x = x|0; y = y|0;
-  disc(x, y, R, P.rockLo);
-  disc(x-Math.round(R*0.2), y-Math.round(R*0.22), Math.max(1,Math.round(R*0.78)), P.rock);
-  px(x-R*0.5, y-R*0.7, Math.max(1,R*0.4), Math.max(1,R*0.3), P.rockHi);
-  px(x+R*0.1, y+R*0.1, Math.max(1,R*0.35), Math.max(1,R*0.25), P.rockLo);
+
+  if(curBoss().id === "strelok"){
+    // стрела летит носом вперёд по своей дуге
+    const len = Math.max(6, Math.round(R*2.6));
+    const ang = rk && rk.dir !== undefined ? rk.dir : 1.2;
+    const dx = Math.cos(ang), dy = Math.sin(ang);
+    limb(x - dx*len*0.5, y - dy*len*0.5, x + dx*len*0.35, y + dy*len*0.35,
+         Math.max(1, Math.round(R*0.22)), S.main);
+    // наконечник
+    px(x + dx*len*0.4 - 1, y + dy*len*0.4 - 1, Math.max(2,R*0.5), Math.max(2,R*0.5), S.hi);
+    // оперение
+    px(x - dx*len*0.55, y - dy*len*0.55, Math.max(2,R*0.5), Math.max(2,R*0.5), "#d8574f");
+    return;
+  }
+
+  if(curBoss().id === "snegovik"){
+    disc(x, y, R, S.lo);
+    disc(x-Math.round(R*0.18), y-Math.round(R*0.2), Math.max(1,Math.round(R*0.82)), S.main);
+    px(x-R*0.45, y-R*0.6, Math.max(1,R*0.35), Math.max(1,R*0.3), S.hi);
+    return;
+  }
+
+  disc(x, y, R, S.lo);
+  disc(x-Math.round(R*0.2), y-Math.round(R*0.22), Math.max(1,Math.round(R*0.78)), S.main);
+  px(x-R*0.5, y-R*0.7, Math.max(1,R*0.4), Math.max(1,R*0.3), S.hi);
+  px(x+R*0.1, y+R*0.1, Math.max(1,R*0.35), Math.max(1,R*0.25), S.lo);
 }
 
 /* ============================================================
@@ -1032,10 +1339,11 @@ function difficulty(){
   const D = curDiff();
   wave = Math.floor(runTime * D.ramp / 16) + 1;
   const k = Math.min(1, (wave-1)/9);
+  const K = curBoss().kit;
   return {
     k,
-    gap:    Math.max(0.30, (1.55 - k*1.05) * D.gap),
-    flight: Math.max(0.62, (1.55 - k*0.62) * D.flight),
+    gap:    Math.max(0.26, (1.55 - k*1.05) * D.gap * K.gap),
+    flight: Math.max(0.48, (1.55 - k*0.62) * D.flight * K.fly),
     volley: Math.min(0.90, (0.10 + k*0.40) * D.volley),
     boulder:Math.min(0.55, (0.06 + k*0.20) * D.boulder)
   };
@@ -1097,18 +1405,21 @@ function releaseThrow(plan){
     });
   }
   boss.recoil = 4;
-  Audio5.sfx("throw");
+  Audio5.sfx(curBoss().sfx.throw);
 }
 
 function rockAt(rk){
   const t = clamp(rk.t / rk.dur, 0, 1);
-  const arc = 46 + (rk.kind==="boulder" ? 16 : 0);
+  const arc = curBoss().kit.arc + (rk.kind==="boulder" ? 16 : 0);
+  const prevX = rk.x, prevY = rk.y;
   rk.x = lerp(rk.x0, rk.tx, t);
   rk.y = lerp(rk.y0, GROUND_Y - 4, t) - Math.sin(Math.PI*t)*arc;
   rk.sc = lerp(0.42, rk.kind==="boulder" ? 1.5 : 1.15, t);
+  // направление движения — стрела должна смотреть туда, куда летит
+  if(prevX !== undefined) rk.dir = Math.atan2(rk.y - prevY, rk.x - prevX);
 }
 
-const hitRadiusOf = rk => rk.kind === "boulder" ? 26 : 13;
+const hitRadiusOf = rk => rk.kind === "boulder" ? curBoss().kit.bigR : curBoss().kit.hitR;
 
 function land(rk){
   const big = rk.kind === "boulder";
@@ -1118,8 +1429,8 @@ function land(rk){
 
   shake = Math.max(shake, big ? 9 : 5);
   craters.push({x: rk.tx, r: big?15:9, life: 5});
-  burst(rk.tx, GROUND_Y, big?26:14, big?150:105, [P.rock, P.rockLo, P.groundSpeck, P.rockHi], 1);
-  Audio5.sfx(big ? "boom" : "impact");
+  burst(rk.tx, GROUND_Y, big?26:14, big?150:105, curBoss().shot.dust, 1);
+  Audio5.sfx(big ? curBoss().sfx.big : curBoss().sfx.land);
 
   if(state !== "play") return;
 
@@ -1143,7 +1454,7 @@ function land(rk){
     // хвалим по имени; у края поля подпись сдвигаем, чтобы длинное имя не срезало
     if(dodgeStreak === 5)  say((player || "ЯРИК") + " В УДАРЕ!",
                                clamp(hero.x, 78, W-78), GROUND_Y-58, P.orange, true);
-    if(dodgeStreak === 12) say("ГРОМИЛА В ЯРОСТИ!", W/2, 120, P.magenta, true);
+    if(dodgeStreak === 12) say(curBoss().name + " В ЯРОСТИ!", W/2, 120, P.magenta, true);
   }
 }
 
@@ -1167,7 +1478,7 @@ function gameOver(){
   newRecord = Math.floor(score) > bests[id].score;
   if(newRecord){
     bests[id] = {score: Math.floor(score), name: player};
-    try { localStorage.setItem("gromila.best." + id, JSON.stringify(bests[id])); } catch(e){}
+    try { localStorage.setItem(bestKey(curBoss().id, id), JSON.stringify(bests[id])); } catch(e){}
   }
 
   // результат уходит в общую таблицу; молча, чтобы сеть не мешала игре
@@ -1245,7 +1556,8 @@ function update(dt){
     if(Math.abs(dx) > 3) target = clamp(dx*9, -speed, speed);
   }
 
-  if(state === "over") target = 0;      // в меню Ярик уже бегает — можно размяться
+  // в меню стрелки заняты выбором соперника, Ярик там стоит и ждёт
+  if(state === "over" || state === "menu") target = 0;
 
   hero.vx += (target - hero.vx) * Math.min(1, dt*16);
   if(Math.abs(hero.vx) < 1) hero.vx = 0;
@@ -1279,7 +1591,7 @@ function update(dt){
     aimNow = clamp(d.k * curDiff().aim, 0, 1);
     if(aimAnnounced < 1 && aimNow > 0.45){
       aimAnnounced = 1;
-      say("ГРОМИЛА ПРИЦЕЛИЛСЯ", W/2, H*0.34, P.magenta, true);
+      say(curBoss().name + " ПРИЦЕЛИЛСЯ", W/2, H*0.34, P.magenta, true);
       Audio5.sfx("roar");
       boss.roar = 0.8; rageFlash = 0.6;
     }
@@ -1296,7 +1608,7 @@ function update(dt){
       rageTimer = 0;
       boss.roar = 1.1; rageFlash = 0.8; shake = Math.max(shake, 6);
       Audio5.sfx("roar");
-      say("ГР-Р-РОМИЛА В ЯРОСТИ", W/2, 108, P.magenta, true);
+      say(curBoss().name + " В ЯРОСТИ!", W/2, 108, P.magenta, true);
       boss.wait = Math.min(boss.wait, 0.35);
     }
     heartTimer -= dt;
@@ -1364,13 +1676,14 @@ function render(){
   drawSky();
   drawBoss();
   drawGround();
+  drawWeather();
 
   // воронки
   for(const c of craters){
     const a = clamp(c.life/5, 0, 1);
     g.globalAlpha = a*0.6;
-    disc(c.x, GROUND_Y+1, c.r, "#180a26");
-    disc(c.x, GROUND_Y, Math.max(1,c.r-3), "#221031");
+    disc(c.x, GROUND_Y+1, c.r, T.crater[0]);
+    disc(c.x, GROUND_Y, Math.max(1,c.r-3), T.crater[1]);
     g.globalAlpha = 1;
   }
 
@@ -1380,8 +1693,8 @@ function render(){
     const big = rk.kind === "boulder";
     const R = (big?26:14) * (0.45 + t*0.55);
     const hot = t > 0.68;
-    // прицельный бросок помечен розовым сразу — предупреждение честное
-    const col = hot ? P.magenta : (big ? P.orange : (rk.pin ? "#ff6b9d" : P.cyan));
+    // прицельный бросок помечен особым цветом сразу — предупреждение честное
+    const col = hot ? T.markHot : (big ? T.markBig : (rk.pin ? T.markAim : T.markCold));
     g.globalAlpha = 0.22 + t*0.3;
     g.fillStyle = col;
     g.beginPath(); g.ellipse(rk.tx, GROUND_Y+2, R, R*0.34, 0, 0, Math.PI*2); g.fill();
@@ -1409,9 +1722,9 @@ function render(){
   // камни в полёте
   for(const rk of rocks){
     g.globalAlpha = 0.25;
-    disc(rk.x+2, rk.y+3, Math.max(2, rk.r*rk.sc*0.9), "#0d0518");
+    disc(rk.x+2, rk.y+3, Math.max(2, rk.r*rk.sc*0.9), T.shade);
     g.globalAlpha = 1;
-    drawRock(rk.x, rk.y, rk.r, rk.sc);
+    drawShot(rk.x, rk.y, rk.r, rk.sc, rk);
   }
 
   drawHero();
@@ -1497,6 +1810,7 @@ function heartIcon(x, y, s, filled){
 const menuRects = [];
 const nickRect = {x:0, y:0, w:0, h:0};
 const boardRect = {x:0, y:0, w:0, h:0};
+const bossRect = {x:0, y:0, w:0, h:0};
 
 function drawUI(){
   u.clearRect(0,0,uiC.width,uiC.height);
@@ -1514,10 +1828,11 @@ function drawUI(){
 
     if(narrow){
       // на узком экране волна, сложность и время идут одной строкой под шапкой
-      text("ВОЛНА " + wave + " · " + curDiff().name + " · " + runTime.toFixed(1) + "с",
+      text(curBoss().name + " · " + curDiff().name + " · ВОЛНА " + wave + " · " + runTime.toFixed(1) + "с",
            cx, row2, 12, P.cyan, "center");
     } else {
-      text("ВОЛНА " + wave + "  ·  " + curDiff().name, cx, row1-4, 18, P.cyan, "center");
+      text("ВОЛНА " + wave + "  ·  " + curBoss().name + "  ·  " + curDiff().name,
+           cx, row1-4, 18, P.cyan, "center");
       text("ВРЕМЯ " + runTime.toFixed(1) + "с", cx, row2, 13, "#a98cc0", "center");
     }
     if(dodgeStreak > 2) text("СЕРИЯ ×" + dodgeStreak, CW-20, row2 + (narrow?Math.round(18*uiK):6), narrow?12:14, P.orange, "right");
@@ -1549,7 +1864,17 @@ function drawUI(){
     u.fillRect(nickRect.x, nickRect.y, nickRect.w, nickRect.h);
     text(nickLine, cx, nickY, 15, P.cyan, "center");
 
-    text("ВЫБЕРИ СЛОЖНОСТЬ", cx, CH*0.368, 14, "#8a6fa0", "center");
+    // выбор соперника — стрелками или касанием краёв строки
+    const bossLine = "◀   " + curBoss().name + "   ▶";
+    const bossY = CH*0.363;
+    u.font = "bold " + Math.round(20*uiK) + "px ui-monospace, Consolas, 'Courier New', monospace";
+    const bw2 = Math.max(u.measureText(bossLine).width, 200*uiK);
+    bossRect.x = cx - bw2/2 - 16; bossRect.y = bossY - Math.round(22*uiK);
+    bossRect.w = bw2 + 32;        bossRect.h = Math.round(30*uiK);
+    u.fillStyle = "rgba(255,139,61,.09)";
+    u.fillRect(bossRect.x, bossRect.y, bossRect.w, bossRect.h);
+    text(bossLine, cx, bossY, 20, P.orange, "center");
+    text(curBoss().hint, cx, bossY + Math.round(20*uiK), 11, "#9d84b4", "center", "normal");
 
     menuRects.length = 0;
     const wRow = Math.min(CW - 50, 440*uiK);
@@ -1559,8 +1884,8 @@ function drawUI(){
     const yBottomHint = CH - 16;
     const yGo   = yBottomHint - 34*uiK;
     const yHint = yGo - 30*uiK;
-    const yTop  = CH*0.40;
-    const hRow  = Math.min(42*uiK, Math.max(24, (yHint - 22*uiK - yTop) / DIFFS.length));
+    const yTop  = CH*0.435;
+    const hRow  = Math.min(40*uiK, Math.max(22, (yHint - 26*uiK - yTop) / DIFFS.length));
     for(let i=0;i<DIFFS.length;i++){
       const d = DIFFS[i];
       const y = yTop + i*hRow;
@@ -1611,6 +1936,8 @@ function drawUI(){
 
     chromaText("ТАБЛИЦА РЕКОРДОВ", cx, CH*0.13, 40);
     text("◀  " + DIFFS[board.diff].name + "  ▶", cx, CH*0.20, 20, P.orange, "center");
+    text(cloudHasBoss === false ? "общий зачёт всех соперников" : curBoss().name,
+         cx, CH*0.235, 12, "#8a6fa0", "center", "normal");
 
     const top = CH*0.26, rowH = Math.min(34*uiK, (CH*0.82 - top)/10);
     if(board.status === "loading"){
@@ -1659,7 +1986,7 @@ function drawUI(){
     u.fillStyle = "rgba(10,5,18,.4)";
     u.fillRect(0,0,CW,CH);
     scrim(CH*0.26, CH*0.89, 0.84);
-    chromaText("ГРОМИЛА ПОБЕДИЛ", cx, CH*0.37, 44);
+    chromaText(curBoss().name + " ПОБЕДИЛ", cx, CH*0.37, 44);
     text("ОЧКИ  " + Math.floor(score), cx, CH*0.50, 30, P.bone, "center");
     text(narrow ? runTime.toFixed(1) + " с · ВОЛНА " + wave + " · " + curDiff().name
                : "ПРОДЕРЖАЛСЯ  " + runTime.toFixed(1) + " с  ·  ВОЛНА " + wave + "  ·  " + curDiff().name,
@@ -1787,6 +2114,21 @@ function moveMenu(step){
   menuIndex = (menuIndex + step + DIFFS.length) % DIFFS.length;
   Audio5.sfx("dodge");
 }
+/* Смена соперника меняет мир целиком: палитру, фигуру и снаряд */
+function applyBoss(i){
+  bossIndex = (i + BOSSES.length) % BOSSES.length;
+  T = curBoss().theme;
+  B = curBoss().body;
+  loadBests();                       // у каждого соперника свой зачёт
+  try { localStorage.setItem("gromila.boss", curBoss().id); } catch(e){}
+}
+function shiftBoss(step){
+  if(state !== "menu") return;
+  applyBoss(bossIndex + step);
+  buildScenery();
+  Audio5.sfx(curBoss().sfx.throw);
+}
+
 function openBoard(){
   state = "board";
   board.diff = menuIndex;
@@ -1809,6 +2151,8 @@ window.addEventListener("keydown", e => {
   if(state === "menu"){
     if(e.code === "ArrowUp"   || e.code === "KeyW") moveMenu(-1);
     if(e.code === "ArrowDown" || e.code === "KeyS") moveMenu(1);
+    if(e.code === "ArrowLeft"  || e.code === "KeyA") shiftBoss(-1);
+    if(e.code === "ArrowRight" || e.code === "KeyD") shiftBoss(1);
     if(e.code === "KeyT") openBoard();
   } else if(state === "board"){
     if(e.code === "ArrowLeft")  shiftBoard(-1);
@@ -1855,6 +2199,11 @@ screenEl.addEventListener("pointerdown", e => {
     if(ux >= boardRect.x && ux <= boardRect.x+boardRect.w &&
        uy >= boardRect.y && uy <= boardRect.y+boardRect.h){
       openBoard();
+      return;
+    }
+    if(ux >= bossRect.x && ux <= bossRect.x+bossRect.w &&
+       uy >= bossRect.y && uy <= bossRect.y+bossRect.h){
+      shiftBoss(ux < bossRect.x + bossRect.w/2 ? -1 : 1);   // левый край назад, правый вперёд
       return;
     }
     const row = menuRects.find(m => ux >= m.x && ux <= m.x+m.w && uy >= m.y && uy <= m.y+m.h);
