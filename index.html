@@ -1136,7 +1136,9 @@ function land(rk){
     score += bonus;
     Audio5.sfx("dodge");
     say("+"+bonus, hero.x, GROUND_Y-42, P.cyan);
-    if(dodgeStreak === 5)  say("ЯРИК В УДАРЕ!", hero.x, GROUND_Y-58, P.orange, true);
+    // хвалим по имени; у края поля подпись сдвигаем, чтобы длинное имя не срезало
+    if(dodgeStreak === 5)  say((player || "ЯРИК") + " В УДАРЕ!",
+                               clamp(hero.x, 78, W-78), GROUND_Y-58, P.orange, true);
     if(dodgeStreak === 12) say("ГРОМИЛА В ЯРОСТИ!", W/2, 120, P.magenta, true);
   }
 }
