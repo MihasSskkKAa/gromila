@@ -19,6 +19,7 @@
   --mono:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;
 }
 *{box-sizing:border-box;}
+html{height:100%;}
 body{
   margin:0;
   background:var(--void);
@@ -28,11 +29,17 @@ body{
   color:var(--bone);
   font-family:var(--mono);
   min-height:100vh;
+  min-height:100dvh;          /* адресная строка мобильного браузера не должна резать экран */
   display:flex;
   align-items:center;
   justify-content:center;
   padding:clamp(8px,2.4vw,28px);
   -webkit-font-smoothing:antialiased;
+  overscroll-behavior:none;   /* никакого «потянуть, чтобы обновить» посреди боя */
+  -webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none;
+  user-select:none;
+  touch-action:manipulation;  /* без зума по двойному тапу */
 }
 .cabinet{
   width:100%;
@@ -161,12 +168,49 @@ button[aria-pressed="true"]{color:var(--void);background:var(--cyan);border-colo
   gap:12px;
   flex-wrap:wrap;
 }
-@media (max-width:640px){
-  .marquee h1{letter-spacing:.22em;}
-  .keys{display:none;}
-  .pads{margin-left:0;width:100%;}
-  .pad{flex:1;padding:16px 0;font-size:20px;}
+/* ---- телефон, вертикально: экран сверху, крупные кнопки под ним ---- */
+@media (max-width:700px){
+  body{padding:6px;align-items:stretch;}
+  .cabinet{gap:8px;justify-content:center;max-width:none;}
+  .marquee,.credits,.keys{display:none;}   /* заголовок и подсказки уже есть внутри игры */
+  .screen{border-width:2px;border-radius:10px;box-shadow:0 0 0 3px var(--cab),0 0 26px rgba(224,57,107,.22);}
+  .panel{padding:8px;gap:8px;border-radius:10px;}
+  .pads{
+    margin-left:0;width:100%;
+    display:grid;gap:8px;
+    grid-template-columns:1fr 1fr;
+    grid-template-areas:"left right" "menu sound";
+  }
+  #btnLeft{grid-area:left;} #btnRight{grid-area:right;}
+  #btnMenu{grid-area:menu;} #btnSound{grid-area:sound;}
+  .pad{
+    min-height:clamp(64px,12vh,104px);
+    font-size:28px;
+    background:#33195a;
+    border-color:#5c2e80;
+  }
+  .pad:active{background:var(--cyan);color:var(--void);}
+  #btnMenu,#btnSound{min-height:48px;font-size:12px;padding:8px 6px;letter-spacing:.1em;}
 }
+
+/* ---- телефон, горизонтально: экран во всю высоту, узкая полоса кнопок ---- */
+@media (max-height:520px) and (orientation:landscape){
+  body{padding:4px;}
+  .cabinet{gap:5px;}
+  .marquee,.credits,.keys{display:none;}
+  .screen{
+    /* держим 16:9 и вписываем по высоте, иначе низ экрана уезжает под панель */
+    width:min(100%, calc((100dvh - 74px) * 16 / 9));
+    margin-inline:auto;
+    border-width:2px;
+  }
+  .panel{padding:5px;gap:6px;}
+  .pads{margin-left:0;width:100%;display:flex;gap:6px;}
+  .pad{flex:1;min-height:46px;font-size:20px;background:#33195a;}
+  .pad:active{background:var(--cyan);color:var(--void);}
+  #btnMenu,#btnSound{min-height:46px;font-size:11px;padding:6px 10px;}
+}
+
 @media (prefers-reduced-motion:reduce){
   .screen{box-shadow:0 0 0 6px var(--cab),0 18px 40px rgba(0,0,0,.6);}
 }
@@ -194,7 +238,7 @@ button[aria-pressed="true"]{color:var(--void);background:var(--cyan);border-colo
       <button class="pad" id="btnLeft" aria-label="Влево">◀</button>
       <button class="pad" id="btnRight" aria-label="Вправо">▶</button>
       <button id="btnMenu">Меню</button>
-      <button id="btnSound" aria-pressed="false">Звук</button>
+      <button id="btnSound" aria-pressed="false">Звук выкл</button>
     </div>
   </div>
 
@@ -213,17 +257,49 @@ button[aria-pressed="true"]{color:var(--void);background:var(--cyan);border-colo
    Мир рисуется в 480x270 и растягивается CSS'ом (pixelated),
    интерфейс — на отдельном холсте 960x540, чтобы текст был чётким.
    ============================================================ */
-const W = 480, H = 270, S = 2;
+/* Размер мира зависит от устройства: на широком экране кинематографичные 480x270,
+   на телефоне в портрете — узкое и высокое поле, чтобы картинка не сжималась в полоску. */
+let W = 480, H = 270;
+let HORIZON_Y, BOSS_FEET, GROUND_TOP, GROUND_Y, HERO_MIN_X, HERO_MAX_X;
+
 const world = document.getElementById("game");
 const g = world.getContext("2d");
 const uiC = document.getElementById("ui");
 const u = uiC.getContext("2d");
+const screenEl = document.getElementById("screen");
 g.imageSmoothingEnabled = false;
 
-const GROUND_Y   = 238;   // линия ног Ярика
-const HORIZON_Y  = 168;   // верх дальнего плато
-const BOSS_FEET  = 172;   // ноги Громилы (задний план)
-const HERO_MIN_X = 26, HERO_MAX_X = W - 26;
+/* сенсорный экран: подсказки и управление отличаются от настольных */
+const coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+
+/* Все горизонты — доли высоты, поэтому пропорции сцены сохраняются при любом формате.
+   Множители подобраны так, что при H=270 получаются исходные 168 / 172 / 196 / 238. */
+function layoutWorld(){
+  const portrait = window.matchMedia("(max-width: 700px) and (orientation: portrait)").matches;
+  W = portrait ? 300 : 480;
+  H = portrait ? 430 : 270;
+
+  HORIZON_Y  = Math.round(H * 0.622);   // верх дальнего плато
+  BOSS_FEET  = HORIZON_Y + 4;           // ноги Громилы
+  GROUND_TOP = Math.round(H * 0.726);   // начало переднего плана
+  GROUND_Y   = Math.round(H * 0.881);   // линия ног Ярика
+  HERO_MIN_X = 26;
+  HERO_MAX_X = W - 26;
+
+  world.width = W; world.height = H;
+  uiC.width = W * 2; uiC.height = H * 2;
+  screenEl.style.aspectRatio = W + " / " + H;
+  g.imageSmoothingEnabled = false;
+}
+
+/* Вписываем экран в свободную высоту: aspect-ratio сам посчитает высоту,
+   наша задача — не дать ширине вырасти так, что низ уедет под кнопки. */
+function fitScreen(){
+  const panel = document.querySelector(".panel");
+  const panelH = panel ? panel.getBoundingClientRect().height : 0;
+  const avail = window.innerHeight - panelH - 34;
+  screenEl.style.maxWidth = avail > 120 ? Math.floor(avail * W / H) + "px" : "";
+}
 
 /* ============================================================
    ПАЛИТРА
@@ -368,10 +444,13 @@ const Audio5 = (function(){
     },
     setEnabled(on){
       enabled = on;
-      this.unlock();
+      if(on) this.unlock();
       if(!ac) return;
-      master.gain.cancelScheduledValues(ac.currentTime);
-      master.gain.linearRampToValueAtTime(on ? 0.5 : 0.0, ac.currentTime + 0.12);
+      const now = ac.currentTime;
+      // фиксируем текущее значение, иначе рампа поедет от последнего события автоматизации
+      master.gain.cancelScheduledValues(now);
+      master.gain.setValueAtTime(master.gain.value, now);
+      master.gain.linearRampToValueAtTime(on ? 0.5 : 0.0, now + 0.12);
     },
     isEnabled(){ return enabled; },
     startMusic(){
@@ -487,11 +566,16 @@ const curDiff = () => DIFFS[diffIndex];
 
 const keys = Object.create(null);
 const pressed = { left:false, right:false };
+let touchX = null;            // куда ведёт палец; null — экран не тронут
+let paused = false;           // свернули вкладку посреди боя
 
-/* декоративный шум — фиксированный, чтобы фон не «кипел» */
-const stars = Array.from({length:70}, () => ({x:Math.random()*W, y:Math.random()*130, p:Math.random()*6.28, s:Math.random()<0.25?2:1}));
-const specks = Array.from({length:120}, () => ({x:Math.random()*W, y:196+Math.random()*74, w:Math.random()<0.3?2:1}));
-const ridge = Array.from({length:40}, (_,i) => 148 - Math.abs(Math.sin(i*1.7))*26 - (i%3)*3);
+/* декоративный шум — фиксированный, чтобы фон не «кипел»; пересобирается при смене формата */
+let stars = [], specks = [], ridge = [];
+function buildScenery(){
+  stars  = Array.from({length:70},  () => ({x:Math.random()*W, y:Math.random()*HORIZON_Y*0.78, p:Math.random()*6.28, s:Math.random()<0.25?2:1}));
+  specks = Array.from({length:120}, () => ({x:Math.random()*W, y:GROUND_TOP+Math.random()*(H-GROUND_TOP), w:Math.random()<0.3?2:1}));
+  ridge  = Array.from({length:40},  (_,i) => HORIZON_Y-20 - Math.abs(Math.sin(i*1.7))*26 - (i%3)*3);
+}
 
 /* ============================================================
    ПРИМИТИВЫ РИСОВАНИЯ (целые пиксели)
@@ -535,7 +619,7 @@ function drawSky(){
   }
 
   // солнце с полосами — синтвейв
-  const cx = 240, cy = 142, r = 58;
+  const cx = Math.round(W/2), cy = HORIZON_Y - 26, r = Math.round(H*0.215);
   disc(cx, cy, r, "#ffca5c");
   for(let y=-r;y<=r;y++){
     const w = Math.floor(Math.sqrt(Math.max(0, r*r - y*y)));
@@ -563,15 +647,15 @@ function drawSky(){
 }
 
 function drawGround(){
-  px(0, HORIZON_Y, W, 18, P.plateau);          // дальнее плато
+  const gap = GROUND_TOP - HORIZON_Y;           // провал между планами
+  px(0, HORIZON_Y, W, gap, P.chasm);
+  px(0, HORIZON_Y, W, Math.round(gap*0.65), P.plateau);   // дальнее плато
   px(0, HORIZON_Y, W, 2, P.plateauTop);
-  px(0, HORIZON_Y+18, W, 6, "#160823");        // обрыв
-  px(0, HORIZON_Y+24, W, 6, P.chasm);          // провал между планами
-  px(0, 196, W, H-196, P.ground);              // передний план
-  px(0, 196, W, 2, P.groundTop);
-  px(0, 198, W, 2, "#3a1a4a");
+  px(0, GROUND_TOP, W, H-GROUND_TOP, P.ground);           // передний план
+  px(0, GROUND_TOP, W, 2, P.groundTop);
+  px(0, GROUND_TOP+2, W, 2, "#3a1a4a");
   for(const s of specks) px(s.x, s.y, s.w, 1, P.groundSpeck);
-  for(let y=206; y<H; y+=7) { g.globalAlpha=.14; px(0,y,W,1,"#0d0518"); g.globalAlpha=1; }
+  for(let y=GROUND_TOP+10; y<H; y+=7) { g.globalAlpha=.14; px(0,y,W,1,"#0d0518"); g.globalAlpha=1; }
 }
 
 /* ============================================================
@@ -759,6 +843,12 @@ function burst(x, y, n, spread, colors, up){
     });
   }
 }
+/* отдача в ладонь; браузер отклоняет вызов до первого настоящего касания — это не ошибка */
+function buzz(pattern){
+  if(!navigator.vibrate) return;
+  try { navigator.vibrate(pattern); } catch(e){}
+}
+
 function say(text, x, y, color, big){
   texts.push({text, x, y, life: big?1.6:1.1, color, big:!!big});
 }
@@ -796,7 +886,7 @@ function planThrow(){
   if(count === 1){
     targets.push(center);
   } else {
-    const spread = rnd(58, 96);
+    const spread = rnd(58, 96) * (W/480);   // на узком поле залп не должен накрывать всё разом
     for(let i=0;i<count;i++){
       targets.push(clamp(center + (i - (count-1)/2)*spread, 26, W-26));
     }
@@ -849,6 +939,7 @@ function land(rk){
     flash = 1;
     dodgeStreak = 0;
     Audio5.sfx("hurt");
+    buzz(hero.lives > 0 ? 45 : [60,50,90]);
     burst(hero.x, GROUND_Y-14, 18, 120, [P.magenta, P.bone, P.shirt], 1);
     say(hero.lives > 0 ? "АЙ!" : "ОЙ-Й!", hero.x, GROUND_Y-40, P.magenta);
     if(hero.lives <= 0) gameOver();
@@ -899,7 +990,7 @@ function startGame(){
   reset();
   state = "play";
   Audio5.unlock();
-  Audio5.startMusic();
+  if(Audio5.isEnabled()) Audio5.startMusic();
   Audio5.sfx("start");
   say(curDiff().name, W/2, 120, P.orange, true);
 }
@@ -934,6 +1025,13 @@ function update(dt){
   let target = 0;
   if(left && !right)  target = -speed;
   if(right && !left)  target =  speed;
+
+  // палец на экране перебивает кнопки: бежим к точке касания и тормозим на месте
+  if(touchX !== null && !left && !right){
+    const dx = touchX - hero.x;
+    if(Math.abs(dx) > 3) target = clamp(dx*9, -speed, speed);
+  }
+
   if(state === "over") target = 0;      // в меню Ярик уже бегает — можно размяться
 
   hero.vx += (target - hero.vx) * Math.min(1, dt*16);
@@ -1112,7 +1210,16 @@ function render(){
 /* ============================================================
    ИНТЕРФЕЙС (чёткий слой 960x540)
    ============================================================ */
+/* На телефоне холст интерфейса ужимается с 960 px до ширины экрана, поэтому
+   шрифты укрупняем обратно — иначе подписи превращаются в нечитаемую мелочь. */
+let uiK = 1;
+function computeUiScale(){
+  const w = screenEl.getBoundingClientRect().width || 960;
+  uiK = clamp(640 / Math.max(240, w), 1, 1.75);
+}
+
 function text(str, x, y, size, color, align, weight){
+  size = Math.round(size * uiK);
   u.font = (weight||"bold") + " " + size + "px " + "ui-monospace, Consolas, 'Courier New', monospace";
   u.textAlign = align || "left";
   u.textBaseline = "alphabetic";
@@ -1122,8 +1229,15 @@ function text(str, x, y, size, color, align, weight){
   u.fillText(str, x, y);
 }
 function chromaText(str, x, y, size){
-  u.font = "bold " + size + "px ui-monospace, Consolas, 'Courier New', monospace";
+  size = Math.round(size * Math.min(uiK, 1.25));   // крупный заголовок и так широкий
+  const face = "px ui-monospace, Consolas, 'Courier New', monospace";
   u.textAlign = "center";
+  // ужимаем, пока заголовок не влезет в экран — на телефоне длинные фразы иначе обрезаются
+  do {
+    u.font = "bold " + size + face;
+    if(u.measureText(str).width <= uiC.width - 40) break;
+    size -= 2;
+  } while(size > 12);
   u.fillStyle = P.magenta; u.fillText(str, x-3, y);
   u.fillStyle = P.cyan;    u.fillText(str, x+3, y);
   u.fillStyle = P.bone;    u.fillText(str, x, y);
@@ -1149,35 +1263,51 @@ const menuRects = [];
 function drawUI(){
   u.clearRect(0,0,uiC.width,uiC.height);
 
+  const CW = uiC.width, CH = uiC.height, cx = CW/2;
+  const narrow = CW < 900;                      // телефон в портрете
+
   if(state === "play" || state === "over"){
+    const hs = Math.max(3, Math.round(2.6*uiK));          // размер сердечка
+    const row1 = Math.round(20 + 22*uiK);
+    const row2 = row1 + Math.round(21*uiK);
     const slots = Math.max(curDiff().lives, hero.lives);
-    for(let i=0;i<slots;i++) heartIcon(22 + i*34, 24, 3, i < hero.lives);
-    text("ОЧКИ " + String(Math.floor(score)).padStart(6,"0"), uiC.width-22, 44, 22, P.bone, "right");
-    text("ВОЛНА " + wave + "  ·  " + curDiff().name, uiC.width/2, 40, 18, P.cyan, "center");
-    text("ВРЕМЯ " + runTime.toFixed(1) + "с", uiC.width/2, 62, 13, "#a98cc0", "center");
-    if(dodgeStreak > 2) text("СЕРИЯ ×" + dodgeStreak, uiC.width-22, 68, 14, P.orange, "right");
+    for(let i=0;i<slots;i++) heartIcon(20 + i*hs*11, row1 - hs*8, hs, i < hero.lives);
+    text("ОЧКИ " + String(Math.floor(score)).padStart(6,"0"), CW-20, row1, narrow ? 17 : 22, P.bone, "right");
+
+    if(narrow){
+      // на узком экране волна, сложность и время идут одной строкой под шапкой
+      text("ВОЛНА " + wave + " · " + curDiff().name + " · " + runTime.toFixed(1) + "с",
+           cx, row2, 12, P.cyan, "center");
+    } else {
+      text("ВОЛНА " + wave + "  ·  " + curDiff().name, cx, row1-4, 18, P.cyan, "center");
+      text("ВРЕМЯ " + runTime.toFixed(1) + "с", cx, row2, 13, "#a98cc0", "center");
+    }
+    if(dodgeStreak > 2) text("СЕРИЯ ×" + dodgeStreak, CW-20, row2 + (narrow?Math.round(18*uiK):6), narrow?12:14, P.orange, "right");
   }
 
   if(state === "menu"){
     u.fillStyle = "rgba(10,5,18,.34)";
-    u.fillRect(0,0,uiC.width,uiC.height);
-    scrim(40, 520, 0.82);
+    u.fillRect(0,0,CW,CH);
+    scrim(CH*0.07, CH*0.97, 0.82);
 
     const pulse = 1 + Math.sin(time*3)*0.018;
     u.save();
-    u.translate(uiC.width/2, 118);
+    u.translate(cx, CH*0.20);
     u.scale(pulse, pulse);
     chromaText("ГРОМИЛА", 0, 0, 66);
     u.restore();
-    text("ЯРИК ПРОТИВ ВЕЛИКАНА", uiC.width/2, 152, 16, P.orange, "center");
+    text("ЯРИК ПРОТИВ ВЕЛИКАНА", cx, CH*0.256, 16, P.orange, "center");
 
-    text("ВЫБЕРИ СЛОЖНОСТЬ", uiC.width/2, 202, 14, "#8a6fa0", "center");
+    text("ВЫБЕРИ СЛОЖНОСТЬ", cx, CH*0.335, 14, "#8a6fa0", "center");
 
     menuRects.length = 0;
-    const x0 = uiC.width/2 - 220, wRow = 440, hRow = 46;
+    const wRow = Math.min(CW - 50, 440*uiK);
+    const x0 = cx - wRow/2;
+    const hRow = 42*uiK;
+    const yTop = CH*0.37;
     for(let i=0;i<DIFFS.length;i++){
       const d = DIFFS[i];
-      const y = 224 + i*hRow;
+      const y = yTop + i*hRow;
       menuRects.push({x:x0, y, w:wRow, h:hRow-6, i});
       const on = i === menuIndex;
       if(on){
@@ -1186,32 +1316,46 @@ function drawUI(){
         u.fillStyle = P.cyan;
         u.fillRect(x0, y, 4, hRow-6);
       }
-      text(on ? "▶ " + d.name : "  " + d.name, x0+22, y+27, 22, on ? P.bone : "#8f74a6", "left");
+      const baseline = y + hRow*0.62;
+      text(on ? "▶ " + d.name : "  " + d.name, x0+18, baseline, 22, on ? P.bone : "#8f74a6", "left");
       const bs = bests[d.id];
-      text(bs > 0 ? String(bs) : "—", x0+wRow-20, y+27, 16, on ? P.cyan : "#6d5580", "right",
+      text(bs > 0 ? String(bs) : "—", x0+wRow-16, baseline, 16, on ? P.cyan : "#6d5580", "right",
            bs > 0 ? "bold" : "normal");
     }
 
-    text(DIFFS[menuIndex].hint, uiC.width/2, 442, 15, "#b79ccb", "center", "normal");
+    const yAfter = yTop + hRow*DIFFS.length;
+    text(DIFFS[menuIndex].hint, cx, yAfter+Math.round(24*uiK), narrow?12:14, "#b79ccb", "center", "normal");
     if(Math.floor(time*1.6) % 2 === 0)
-      text("ПРОБЕЛ — В БОЙ", uiC.width/2, 480, 22, P.cyan, "center");
+      text(coarse ? "КОСНИСЬ — В БОЙ" : "ПРОБЕЛ — В БОЙ", cx, yAfter+Math.round(62*uiK), 22, P.cyan, "center");
 
-    text("↑ ↓ — выбор   ·   ← → — бежать   ·   M — звук", uiC.width/2, 516, 13, "#6d5580", "center", "normal");
+    text(coarse ? "веди пальцем — Ярик бежит за ним"
+               : "↑ ↓ — выбор   ·   ← → — бежать   ·   M — звук",
+         cx, CH-16, 12, "#6d5580", "center", "normal");
+  }
+
+  if(paused){
+    u.fillStyle = "rgba(10,5,18,.72)";
+    u.fillRect(0,0,CW,CH);
+    chromaText("ПАУЗА", cx, CH*0.48, 56);
+    text(coarse ? "коснись экрана, чтобы продолжить" : "нажми пробел, чтобы продолжить",
+         cx, CH*0.58, narrow?13:18, P.cyan, "center", "normal");
   }
 
   if(state === "over"){
     u.fillStyle = "rgba(10,5,18,.4)";
-    u.fillRect(0,0,uiC.width,uiC.height);
-    scrim(140, 480, 0.84);
-    chromaText("ГРОМИЛА ПОБЕДИЛ", uiC.width/2, 200, 44);
-    text("ОЧКИ  " + Math.floor(score), uiC.width/2, 268, 30, P.bone, "center");
-    text("ПРОДЕРЖАЛСЯ  " + runTime.toFixed(1) + " с  ·  ВОЛНА " + wave + "  ·  " + curDiff().name,
-         uiC.width/2, 304, 16, "#b79ccb", "center", "normal");
+    u.fillRect(0,0,CW,CH);
+    scrim(CH*0.26, CH*0.89, 0.84);
+    chromaText("ГРОМИЛА ПОБЕДИЛ", cx, CH*0.37, 44);
+    text("ОЧКИ  " + Math.floor(score), cx, CH*0.50, 30, P.bone, "center");
+    text(narrow ? runTime.toFixed(1) + " с · ВОЛНА " + wave + " · " + curDiff().name
+               : "ПРОДЕРЖАЛСЯ  " + runTime.toFixed(1) + " с  ·  ВОЛНА " + wave + "  ·  " + curDiff().name,
+         cx, CH*0.565, narrow?12:16, "#b79ccb", "center", "normal");
     text(newRecord ? "НОВЫЙ РЕКОРД!" : "РЕКОРД  " + bests[curDiff().id],
-         uiC.width/2, 344, 20, newRecord ? P.orange : "#8a6fa0", "center");
+         cx, CH*0.635, 20, newRecord ? P.orange : "#8a6fa0", "center");
     if(Math.floor(time*1.6) % 2 === 0)
-      text("ПРОБЕЛ — ЕЩЁ РАЗ", uiC.width/2, 416, 24, P.cyan, "center");
-    text("ESC — выбрать сложность", uiC.width/2, 452, 16, "#8a6fa0", "center", "normal");
+      text(coarse ? "КОСНИСЬ — ЕЩЁ РАЗ" : "ПРОБЕЛ — ЕЩЁ РАЗ", cx, CH*0.77, 24, P.cyan, "center");
+    text(coarse ? "кнопка «Меню» — сменить сложность" : "ESC — выбрать сложность",
+         cx, CH*0.84, narrow?12:16, "#8a6fa0", "center", "normal");
   }
 }
 
@@ -1223,10 +1367,27 @@ function frame(now){
   let dt = (now - last)/1000;
   last = now;
   if(dt > 0.05) dt = 0.05;      // после сворачивания вкладки не «телепортируем» мир
-  update(dt);
+  if(!paused) update(dt);
   render();
   drawUI();
   requestAnimationFrame(frame);
+}
+
+/* свернули браузер посреди боя — замираем, чтобы не потерять жизни вслепую */
+document.addEventListener("visibilitychange", () => {
+  if(document.hidden && state === "play"){
+    paused = true;
+    touchX = null;
+    pressed.left = pressed.right = false;
+    for(const k in keys) keys[k] = false;
+    Audio5.stopMusic();
+  }
+});
+function resume(){
+  if(!paused) return;
+  paused = false;
+  last = performance.now();
+  if(Audio5.isEnabled()) Audio5.startMusic();
 }
 
 /* ============================================================
@@ -1234,7 +1395,9 @@ function frame(now){
    ============================================================ */
 function action(){
   Audio5.unlock();
-  if(!Audio5.isEnabled()) setSound(true);
+  if(paused){ resume(); return; }
+  // сами включаем звук только пока игрок не высказался — выключил, значит выключено
+  if(soundChoice === null) setSound(true, false);
   if(state === "menu" || state === "over") startGame();
 }
 function moveMenu(step){
@@ -1252,20 +1415,19 @@ window.addEventListener("keydown", e => {
   }
   if(e.code === "Space" || e.code === "Enter") action();
   if(e.code === "Escape" && state !== "menu") toMenu();
-  if(e.code === "KeyM") setSound(!Audio5.isEnabled());
+  if(e.code === "KeyM") setSound(!Audio5.isEnabled(), true);
 });
 window.addEventListener("keyup", e => { keys[e.code] = false; });
 window.addEventListener("blur", () => { for(const k in keys) keys[k] = false; pressed.left = pressed.right = false; });
 
-const screenEl = document.getElementById("screen");
 function pointerAt(e){
+  // ведём Ярика к пальцу: точнее и понятнее, чем «левая/правая половина»
   const r = screenEl.getBoundingClientRect();
-  const px_ = ((e.touches ? e.touches[0].clientX : e.clientX) - r.left) / r.width;
-  pressed.left  = px_ < 0.5;
-  pressed.right = px_ >= 0.5;
+  touchX = clamp((e.clientX - r.left) / r.width * W, HERO_MIN_X, HERO_MAX_X);
 }
 screenEl.addEventListener("pointerdown", e => {
   screenEl.setPointerCapture && screenEl.setPointerCapture(e.pointerId);
+  if(paused){ resume(); return; }
   if(state === "menu"){
     // координаты клика — в системе интерфейсного холста 960x540
     const r = screenEl.getBoundingClientRect();
@@ -1281,9 +1443,9 @@ screenEl.addEventListener("pointerdown", e => {
   if(state === "over"){ action(); return; }
   pointerAt(e);
 });
-screenEl.addEventListener("pointermove", e => { if(pressed.left || pressed.right) pointerAt(e); });
+screenEl.addEventListener("pointermove", e => { if(touchX !== null) pointerAt(e); });
 ["pointerup","pointercancel","pointerleave"].forEach(ev =>
-  screenEl.addEventListener(ev, () => { pressed.left = pressed.right = false; }));
+  screenEl.addEventListener(ev, () => { touchX = null; pressed.left = pressed.right = false; }));
 
 function hold(btn, side){
   const on  = e => { e.preventDefault(); pressed[side] = true;  Audio5.unlock(); };
@@ -1295,15 +1457,48 @@ hold(document.getElementById("btnLeft"), "left");
 hold(document.getElementById("btnRight"), "right");
 
 const soundBtn = document.getElementById("btnSound");
-function setSound(on){
+
+/* null — игрок ещё не решал (тогда звук включаем сами при первом действии),
+   true/false — осознанный выбор, который больше нельзя перебивать */
+let soundChoice = null;
+
+function setSound(on, explicit){
+  if(explicit) soundChoice = on;
   Audio5.setEnabled(on);
+  if(on) Audio5.startMusic(); else Audio5.stopMusic();
   soundBtn.setAttribute("aria-pressed", on ? "true" : "false");
-  if(on) Audio5.startMusic();
+  soundBtn.textContent = on ? "Звук вкл" : "Звук выкл";
 }
-soundBtn.addEventListener("click", () => setSound(!Audio5.isEnabled()));
-document.getElementById("btnMenu").addEventListener("click", () => {
-  if(state === "menu") action(); else toMenu();
+soundBtn.addEventListener("click", () => {
+  setSound(!Audio5.isEnabled(), true);
+  soundBtn.blur();               // иначе Пробел будет жать кнопку вместо старта игры
 });
+document.getElementById("btnMenu").addEventListener("click", e => {
+  if(state === "menu") action(); else toMenu();
+  e.currentTarget.blur();
+});
+
+/* Поворот телефона меняет формат поля целиком, поэтому пересобираем мир,
+   декорации и масштаб подписей, а всё живое возвращаем в новые границы. */
+function relayout(){
+  const prevW = W, prevH = H;
+  layoutWorld();
+  if(W !== prevW || H !== prevH || !stars.length){
+    buildScenery();
+    const kx = W/prevW;
+    hero.x = clamp(hero.x*kx, HERO_MIN_X, HERO_MAX_X);
+    boss.x = clamp(boss.x*kx, 90, W-90);
+    for(const rk of rocks){ rk.x0 *= kx; rk.tx = clamp(rk.tx*kx, 26, W-26); rk.y0 = BOSS_FEET - 96; }
+    for(const ht of hearts) ht.x = clamp(ht.x*kx, 30, W-30);
+    craters.length = 0; parts.length = 0;
+  }
+  fitScreen();
+  computeUiScale();
+}
+
+relayout();
+window.addEventListener("resize", relayout);
+window.addEventListener("orientationchange", () => setTimeout(relayout, 250));
 
 requestAnimationFrame(frame);
 })();
