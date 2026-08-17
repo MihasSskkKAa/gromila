@@ -701,35 +701,34 @@ function cloudSubmit(name, value, diffId){
     .catch(() => false);
 }
 
-/* Сколько строк подходит под условие. Само число приходит заголовком
-   Content-Range, поэтому тело ответа не качаем — хватает HEAD. */
-function cloudCount(query){
-  if(!cloudOn()) return Promise.reject(new Error("off"));
-  return fetch(CLOUD.url + "/rest/v1/" + CLOUD.table + query, {
-    method: "HEAD",
-    headers: cloudHeaders({"Prefer": "count=exact", "Range": "0-0"})
-  }).then(r => {
-    const n = parseInt((r.headers.get("content-range") || "").split("/")[1], 10);
-    if(isNaN(n)) throw new Error("нет счётчика");
-    return n;
+/* В базе лежит каждая партия отдельной строкой, а в рейтинге человек должен
+   занимать одно место. Список приходит отсортированным по убыванию, поэтому
+   первое встреченное имя — это и есть лучший результат игрока. */
+function collapseByPlayer(rows){
+  const seen = new Map();
+  for(const r of rows || []){
+    const key = String(r.name || "").trim().toLowerCase();
+    if(!key) continue;
+    if(!seen.has(key)) seen.set(key, {name: r.name, score: r.score});
+  }
+  return Array.from(seen.values());
+}
+
+/* Место игрока в рейтинге: позиция его лучшего результата среди всех игроков */
+function cloudRank(value, diffId){
+  return cloudRows(diffId, 400).then(rows => {
+    const table = collapseByPlayer(rows);
+    const me = String(player || "").trim().toLowerCase();
+    const idx = table.findIndex(r => String(r.name).trim().toLowerCase() === me);
+    return {place: idx >= 0 ? idx + 1 : null, total: table.length};
   });
 }
 
-/* Место в общем зачёте: сколько результатов строго лучше нашего, плюс один */
-function cloudRank(value, diffId){
-  const v = Math.floor(value);
-  const d = "difficulty=eq." + encodeURIComponent(diffId) + bossFilter();
-  return Promise.all([
-    cloudCount("?select=id&" + d + "&score=gt." + v),
-    cloudCount("?select=id&" + d)
-  ]).then(([better, total]) => ({place: better + 1, total}));
-}
-
-/* Десятка лучших по выбранной сложности и текущему сопернику */
-function cloudTop(diffId){
+/* Сырые записи по сложности и сопернику — уже отсортированные по убыванию */
+function cloudRows(diffId, limit){
   if(!cloudOn()) return Promise.reject(new Error("off"));
   const base = "?select=name,score&difficulty=eq." + encodeURIComponent(diffId) +
-               "&order=score.desc&limit=10";
+               "&order=score.desc&limit=" + limit;
   const get = q => fetch(CLOUD.url + "/rest/v1/" + CLOUD.table + q, {headers: cloudHeaders()});
   const tryBoss = cloudHasBoss !== false;
   return get(base + (tryBoss ? "&boss=eq." + encodeURIComponent(curBoss().id) : ""))
@@ -742,6 +741,11 @@ function cloudTop(diffId){
         return r2.json();
       });
     });
+}
+
+/* Десятка лучших: по одной строке на игрока */
+function cloudTop(diffId){
+  return cloudRows(diffId, 400).then(rows => collapseByPlayer(rows).slice(0, 10));
 }
 
 /* ============================================================
@@ -1995,11 +1999,13 @@ function drawUI(){
                    : "РЕКОРД  " + bests[curDiff().id].score,
          cx, CH*0.635, 20, newRecord ? P.orange : "#8a6fa0", "center");
     // место в общем зачёте — главное, что хочется увидеть после боя
-    if(rankState === "ok" && rank){
+    if(rankState === "ok" && rank && rank.place){
       const first = rank.place === 1;
       text(first ? "ТЫ ПЕРВЫЙ ИЗ " + rank.total + "!"
                  : "ТЫ " + rank.place + "-й ИЗ " + rank.total,
            cx, CH*0.695, first ? 22 : 20, first ? P.orange : P.cyan, "center");
+    } else if(rankState === "ok"){
+      text("результат записан", cx, CH*0.69, 12, "#8a6fa0", "center", "normal");
     } else if(sentState !== "off"){
       const msg = sentState === "sending"      ? "отправляем в общую таблицу…"
                 : rankState === "loading"      ? "считаем место…"
