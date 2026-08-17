@@ -653,15 +653,17 @@ const clamp = (v,a,b) => v<a?a:(v>b?b:v);
 const lerp = (a,b,t) => a + (b-a)*t;
 
 /* уровни сложности — множители к базовой кривой */
+/* aim — насколько быстро Громила пристреливается: чем выше, тем раньше
+   он перестаёт швырять наугад и начинает целить в Ярика. */
 const DIFFS = [
   {id:"easy",  name:"ЛЕГКО",     hint:"Камни летят медленно. Четыре жизни.",
-   gap:1.35, flight:1.30, volley:0.45, boulder:0.45, lives:4, mult:0.7, ramp:0.7},
+   gap:1.35, flight:1.30, volley:0.45, boulder:0.45, lives:4, mult:0.7, ramp:0.7, aim:0.5},
   {id:"normal",name:"НОРМАЛЬНО", hint:"Как в автоматах 86-го. Три жизни.",
-   gap:1.00, flight:1.00, volley:1.00, boulder:1.00, lives:3, mult:1.0, ramp:1.0},
-  {id:"hard",  name:"СЛОЖНО",    hint:"Залпы по три, частые валуны. Две жизни.",
-   gap:0.72, flight:0.84, volley:1.45, boulder:1.45, lives:2, mult:1.6, ramp:1.35},
-  {id:"koshmar",name:"КОШМАР",   hint:"Одна жизнь. Громила не моргает.",
-   gap:0.54, flight:0.70, volley:1.90, boulder:1.85, lives:1, mult:2.4, ramp:1.8}
+   gap:1.00, flight:1.00, volley:1.00, boulder:1.00, lives:3, mult:1.0, ramp:1.0, aim:1.0},
+  {id:"hard",  name:"СЛОЖНО",    hint:"Целится метко, бьёт в вилку. Две жизни.",
+   gap:0.72, flight:0.84, volley:1.45, boulder:1.45, lives:2, mult:1.6, ramp:1.35, aim:1.35},
+  {id:"koshmar",name:"КОШМАР",   hint:"Одна жизнь. Пристреляется за минуту.",
+   gap:0.54, flight:0.70, volley:1.90, boulder:1.85, lives:1, mult:2.4, ramp:1.8, aim:1.75}
 ];
 
 let state = "menu";           // menu | play | over
@@ -678,6 +680,7 @@ const hero = { x: W/2, vx: 0, dir: 1, walk: 0, lives: 3, inv: 0, alive: true };
 const boss = { x: W/2, drift: 1, state: "wait", t: 0, wait: 1.2, pending: null, arm: 0, recoil: 0, roar: 0, hue: 0 };
 
 let rocks = [], parts = [], craters = [], texts = [], hearts = [];
+let aimNow = 0, aimAnnounced = 0;   // насколько Громила пристрелялся и о чём уже предупредил
 
 /* Рекорд помнит и очки, и того, кто их поставил.
    Старые сохранения хранили просто число — поднимаем их без потери. */
@@ -886,7 +889,11 @@ function drawBoss(){
   px(bx-16, hy-6, 4, 8, P.bossSkin);             // уши
   px(bx+12, hy-6, 4, 8, P.bossSkin);
   px(bx-14, hy-6, 28, 4, P.bossSkinLo);          // надбровье
-  const eyeGlow = boss.roar>0 ? "#fff0b0" : P.bossEye;
+  // чем лучше пристрелялся, тем ярче горят глаза
+  const eyeGlow = boss.roar>0 ? "#fff0b0"
+                : aimNow > 0.9  ? "#ffd24a"
+                : aimNow > 0.45 ? "#ff8a3d"
+                                : P.bossEye;
   px(bx-9, hy-1, 5, 4, eyeGlow);
   px(bx+4, hy-1, 5, 4, eyeGlow);
   px(bx-10, hy+6, 20, 6, P.dark);                // пасть
@@ -1037,25 +1044,41 @@ function difficulty(){
 
 function planThrow(){
   const d = difficulty();
+  const D = curDiff();
+  const aimK = clamp(d.k * D.aim, 0, 1);        // 0 — швыряет наугад, 1 — бьёт прицельно
   const kind = Math.random() < d.boulder ? "boulder" : "rock";
-  const count = (kind === "rock" && Math.random() < d.volley) ? (Math.random()<0.3?3:2) : 1;
   const flight = d.flight * (kind==="boulder" ? 1.25 : 1) * rnd(0.92, 1.08);
 
-  // хаос: частично целится в Ярика, частично — куда попало
-  const chaos = 0.45 + Math.random()*0.3;
-  const predict = clamp(hero.x + hero.vx*flight*rnd(0.2,0.9), 30, W-30);
-  const center = clamp(predict*(1-chaos) + rnd(40, W-40)*chaos, 34, W-34);
+  /* Прицел складывается из двух вещей. Хаос — доля случайности в точке падения,
+     она тает с волнами. Упреждение — насколько верно он угадывает, куда Ярик
+     добежит: сначала мажет мимо, под конец ведёт точно по движению. */
+  const chaos = clamp(0.80 - aimK*0.76, 0.04, 0.85);
+  const lead  = lerp(rnd(0.15,0.55), rnd(0.80,1.10), aimK);
+  const predict = clamp(hero.x + hero.vx*flight*lead, 30, W-30);
+  const center  = clamp(predict*(1-chaos) + rnd(40, W-40)*chaos, 34, W-34);
+
+  /* Пристрелявшись, бьёт в вилку: один в Ярика, два по бокам — стоять негде.
+     У края поля вилку не ставим: там Ярику некуда отбежать, и это была бы
+     не сложность, а безвыходность. */
+  const roomToRun = center > 78*(W/480) && center < W - 78*(W/480);
+  const pin = kind === "rock" && aimK > 0.45 && roomToRun &&
+              Math.random() < 0.20 + aimK*0.28;
+  const volley = !pin && kind === "rock" && Math.random() < d.volley;
 
   const targets = [];
-  if(count === 1){
-    targets.push(center);
-  } else {
-    const spread = rnd(58, 96) * (W/480);   // на узком поле залп не должен накрывать всё разом
+  if(pin){
+    const arm = (26 + 16*(1-aimK)) * (W/480);
+    targets.push(center, clamp(center-arm, 26, W-26), clamp(center+arm, 26, W-26));
+  } else if(volley){
+    const count = Math.random() < 0.3 ? 3 : 2;
+    const spread = rnd(58, 96) * (W/480) * (1 - aimK*0.45);   // с прицелом залп кучнее
     for(let i=0;i<count;i++){
       targets.push(clamp(center + (i - (count-1)/2)*spread, 26, W-26));
     }
+  } else {
+    targets.push(center);
   }
-  return {kind, targets, flight};
+  return {kind, targets, flight, pin};
 }
 
 function releaseThrow(plan){
@@ -1063,6 +1086,7 @@ function releaseThrow(plan){
   for(const tx of plan.targets){
     rocks.push({
       kind: plan.kind,
+      pin: !!plan.pin,
       x0: handX, y0: handY,
       tx, t: 0,
       dur: plan.flight,
@@ -1161,6 +1185,7 @@ function gameOver(){
 function reset(){
   runTime = 0; score = 0; wave = 1; dodgeStreak = 0; rageTimer = 0; heartTimer = 22;
   newRecord = false; sentState = "off"; rankState = "idle"; rank = null;
+  aimNow = 0; aimAnnounced = 0;
   hero.x = W/2; hero.vx = 0; hero.lives = curDiff().lives; hero.inv = 0; hero.alive = true; hero.walk = 0;
   boss.x = W/2; boss.state = "wait"; boss.t = 0; boss.wait = 0.9; boss.pending = null; boss.roar = 0;
   rocks = []; parts = []; craters = []; texts = []; hearts = [];
@@ -1242,6 +1267,21 @@ function update(dt){
   } else if(boss.state === "throw" && boss.t >= 0.22){
     boss.state = "wait"; boss.t = 0;
     boss.wait = d.gap * rnd(0.75, 1.3) * (state === "play" ? 1 : 1.7);
+  }
+
+  // пристрелка: предупреждаем, когда манера броска меняется
+  if(state === "play"){
+    aimNow = clamp(d.k * curDiff().aim, 0, 1);
+    if(aimAnnounced < 1 && aimNow > 0.45){
+      aimAnnounced = 1;
+      say("ГРОМИЛА ПРИЦЕЛИЛСЯ", W/2, H*0.34, P.magenta, true);
+      Audio5.sfx("roar");
+      boss.roar = 0.8; rageFlash = 0.6;
+    }
+    if(aimAnnounced < 2 && aimNow > 0.9){
+      aimAnnounced = 2;
+      say("НЕ БЕГИ ПО ПРЯМОЙ!", W/2, H*0.34, P.orange, true);
+    }
   }
 
   // приступ ярости
@@ -1328,7 +1368,8 @@ function render(){
     const big = rk.kind === "boulder";
     const R = (big?26:14) * (0.45 + t*0.55);
     const hot = t > 0.68;
-    const col = hot ? P.magenta : (big ? P.orange : P.cyan);
+    // прицельный бросок помечен розовым сразу — предупреждение честное
+    const col = hot ? P.magenta : (big ? P.orange : (rk.pin ? "#ff6b9d" : P.cyan));
     g.globalAlpha = 0.22 + t*0.3;
     g.fillStyle = col;
     g.beginPath(); g.ellipse(rk.tx, GROUND_Y+2, R, R*0.34, 0, 0, Math.PI*2); g.fill();
