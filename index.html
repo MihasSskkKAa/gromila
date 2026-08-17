@@ -1907,10 +1907,43 @@ function bigButton(label, y, rect, size){
   u.fillText(label, CW/2, rect.y + rect.h*0.68);
 }
 
+/* Пиксельное сердце 8×7 — с обводкой, чтобы читалось на любом фоне,
+   и с бликом, чтобы полное сердце отличалось от потраченного не только цветом. */
+const HEART = [
+  "01100110",
+  "11111111",
+  "11111111",
+  "11111111",
+  "01111110",
+  "00111100",
+  "00011000"
+];
 function heartIcon(x, y, s, filled){
-  u.fillStyle = filled ? P.magenta : "rgba(246,231,193,.22)";
-  const b = (a,bb,w,h) => u.fillRect(x+a*s, y+bb*s, w*s, h*s);
-  b(0,0,2,2); b(3,0,2,2); b(-1,2,7,3); b(0,5,5,2); b(1,7,3,1);
+  const body  = filled ? P.magenta : "rgba(246,231,193,.16)";
+  const edge  = filled ? "#7a1030" : "rgba(246,231,193,.10)";
+  const shine = filled ? "#ff9ec2" : null;
+
+  for(let r=0;r<HEART.length;r++){
+    for(let c=0;c<8;c++){
+      if(HEART[r][c] !== "1") continue;
+      // обводка: тень на пиксель ниже и правее
+      u.fillStyle = edge;
+      u.fillRect(x + c*s + s*0.35, y + r*s + s*0.35, s, s);
+    }
+  }
+  for(let r=0;r<HEART.length;r++){
+    for(let c=0;c<8;c++){
+      if(HEART[r][c] !== "1") continue;
+      u.fillStyle = body;
+      u.fillRect(x + c*s, y + r*s, s, s);
+    }
+  }
+  if(shine){
+    u.fillStyle = shine;
+    u.fillRect(x + s, y + s, s, s);
+    u.fillRect(x + 2*s, y + s, s, s);
+    u.fillRect(x + s, y + 2*s, s, s);
+  }
 }
 
 const menuRects = [];
@@ -1932,7 +1965,8 @@ function drawUI(){
     const row1 = Math.round(20 + 22*uiK);
     const row2 = row1 + Math.round(21*uiK);
     const slots = Math.max(curDiff().lives, hero.lives);
-    for(let i=0;i<slots;i++) heartIcon(20 + i*hs*11, row1 - hs*8, hs, i < hero.lives);
+    // сердце занимает 8 клеток, между ними — две клетки воздуха
+    for(let i=0;i<slots;i++) heartIcon(20 + i*hs*10, row1 - hs*7, hs, i < hero.lives);
     text("ОЧКИ " + String(Math.floor(score)).padStart(6,"0"), CW-20, row1, narrow ? 17 : 22, P.bone, "right");
 
     if(narrow){
