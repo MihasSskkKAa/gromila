@@ -612,6 +612,30 @@ function cloudSubmit(name, value, diffId){
   }).then(r => r.ok).catch(() => false);
 }
 
+/* Сколько строк подходит под условие. Само число приходит заголовком
+   Content-Range, поэтому тело ответа не качаем — хватает HEAD. */
+function cloudCount(query){
+  if(!cloudOn()) return Promise.reject(new Error("off"));
+  return fetch(CLOUD.url + "/rest/v1/" + CLOUD.table + query, {
+    method: "HEAD",
+    headers: cloudHeaders({"Prefer": "count=exact", "Range": "0-0"})
+  }).then(r => {
+    const n = parseInt((r.headers.get("content-range") || "").split("/")[1], 10);
+    if(isNaN(n)) throw new Error("нет счётчика");
+    return n;
+  });
+}
+
+/* Место в общем зачёте: сколько результатов строго лучше нашего, плюс один */
+function cloudRank(value, diffId){
+  const v = Math.floor(value);
+  const d = "difficulty=eq." + encodeURIComponent(diffId);
+  return Promise.all([
+    cloudCount("?select=id&" + d + "&score=gt." + v),
+    cloudCount("?select=id&" + d)
+  ]).then(([better, total]) => ({place: better + 1, total}));
+}
+
 /* Десятка лучших по выбранной сложности */
 function cloudTop(diffId){
   if(!cloudOn()) return Promise.reject(new Error("off"));
@@ -1100,6 +1124,8 @@ function spawnHeart(){
 
 let newRecord = false;
 let sentState = "off";        // off | sending | sent | failed
+let rankState = "idle";       // idle | loading | ok | fail
+let rank = null;              // {place, total}
 
 function gameOver(){
   state = "over";
@@ -1118,7 +1144,15 @@ function gameOver(){
   // результат уходит в общую таблицу; молча, чтобы сеть не мешала игре
   if(cloudOn() && player && Math.floor(score) > 0){
     sentState = "sending";
-    cloudSubmit(player, score, id).then(ok => { sentState = ok ? "sent" : "failed"; });
+    const mine = score;
+    cloudSubmit(player, mine, id).then(ok => {
+      sentState = ok ? "sent" : "failed";
+      if(!ok) return;
+      rankState = "loading";                    // место считаем после записи, чтобы учесть себя
+      cloudRank(mine, id)
+        .then(r => { rank = r; rankState = "ok"; })
+        .catch(() => { rankState = "fail"; });
+    });
   } else {
     sentState = "off";
   }
@@ -1126,7 +1160,7 @@ function gameOver(){
 
 function reset(){
   runTime = 0; score = 0; wave = 1; dodgeStreak = 0; rageTimer = 0; heartTimer = 22;
-  newRecord = false;
+  newRecord = false; sentState = "off"; rankState = "idle"; rank = null;
   hero.x = W/2; hero.vx = 0; hero.lives = curDiff().lives; hero.inv = 0; hero.alive = true; hero.walk = 0;
   boss.x = W/2; boss.state = "wait"; boss.t = 0; boss.wait = 0.9; boss.pending = null; boss.roar = 0;
   rocks = []; parts = []; craters = []; texts = []; hearts = [];
@@ -1580,10 +1614,18 @@ function drawUI(){
     text(newRecord ? "НОВЫЙ РЕКОРД, " + (player||"ЯРИК").toUpperCase() + "!"
                    : "РЕКОРД  " + bests[curDiff().id].score,
          cx, CH*0.635, 20, newRecord ? P.orange : "#8a6fa0", "center");
-    if(sentState !== "off"){
-      const msg = sentState === "sending" ? "отправляем в общую таблицу…"
-                : sentState === "sent"    ? "результат в общей таблице"
-                                          : "не удалось отправить — таблица недоступна";
+    // место в общем зачёте — главное, что хочется увидеть после боя
+    if(rankState === "ok" && rank){
+      const first = rank.place === 1;
+      text(first ? "ТЫ ПЕРВЫЙ ИЗ " + rank.total + "!"
+                 : "ТЫ " + rank.place + "-й ИЗ " + rank.total,
+           cx, CH*0.695, first ? 22 : 20, first ? P.orange : P.cyan, "center");
+    } else if(sentState !== "off"){
+      const msg = sentState === "sending"      ? "отправляем в общую таблицу…"
+                : rankState === "loading"      ? "считаем место…"
+                : rankState === "fail"         ? "результат записан, место не сосчиталось"
+                : sentState === "failed"       ? "не удалось отправить — таблица недоступна"
+                                               : "результат в общей таблице";
       text(msg, cx, CH*0.69, 12, sentState === "failed" ? P.magenta : "#8a6fa0", "center", "normal");
     }
     if(Math.floor(time*1.6) % 2 === 0)
