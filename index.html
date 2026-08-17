@@ -1891,7 +1891,8 @@ function drawUI(){
     const yGo   = yBottomHint - 34*uiK;
     const yHint = yGo - 30*uiK;
     const yTop  = CH*0.435;
-    const hRow  = Math.min(40*uiK, Math.max(22, (yHint - 26*uiK - yTop) / DIFFS.length));
+    // строки сложности делят то, что осталось выше кнопки таблицы
+    const hRow  = Math.min(40*uiK, Math.max(20, (yHint - 62*uiK - yTop) / DIFFS.length));
     for(let i=0;i<DIFFS.length;i++){
       const d = DIFFS[i];
       const y = yTop + i*hRow;
@@ -1916,15 +1917,17 @@ function drawUI(){
            bs.score > 0 ? "bold" : "normal");
     }
 
-    // вход в общую таблицу
+    // вход в общую таблицу — полноценная кнопка, а не подпись
     const boardLine = "ТАБЛИЦА РЕКОРДОВ ▸";
-    u.font = "bold " + Math.round(13*uiK) + "px ui-monospace, Consolas, 'Courier New', monospace";
-    const bw = u.measureText(boardLine).width;
-    boardRect.x = cx - bw/2 - 12; boardRect.y = yHint - Math.round(38*uiK);
-    boardRect.w = bw + 24;        boardRect.h = Math.round(22*uiK);
-    u.fillStyle = "rgba(255,139,61,.08)";
+    u.font = "bold " + Math.round(17*uiK) + "px ui-monospace, Consolas, 'Courier New', monospace";
+    const bw = Math.min(CW - 44, u.measureText(boardLine).width + 70*uiK);
+    boardRect.x = cx - bw/2;          boardRect.y = yHint - Math.round(56*uiK);
+    boardRect.w = bw;                 boardRect.h = Math.round(36*uiK);
+    u.fillStyle = "rgba(255,139,61,.14)";
     u.fillRect(boardRect.x, boardRect.y, boardRect.w, boardRect.h);
-    text(boardLine, cx, boardRect.y + boardRect.h*0.72, 13, P.orange, "center");
+    u.strokeStyle = "rgba(255,139,61,.55)"; u.lineWidth = 1;
+    u.strokeRect(boardRect.x+0.5, boardRect.y+0.5, boardRect.w-1, boardRect.h-1);
+    text(boardLine, cx, boardRect.y + boardRect.h*0.68, 17, P.orange, "center");
 
     text(DIFFS[menuIndex].hint, cx, yHint, narrow?12:14, "#b79ccb", "center", "normal");
     if(Math.floor(time*1.6) % 2 === 0)
