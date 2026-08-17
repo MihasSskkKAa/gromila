@@ -102,6 +102,52 @@ body{
     radial-gradient(130% 100% at 50% 0%, rgba(255,255,255,.09) 0%, rgba(255,255,255,0) 45%),
     radial-gradient(120% 120% at 50% 55%, rgba(0,0,0,0) 45%, rgba(0,0,0,.72) 100%);
 }
+/* ---- окно ввода имени поверх экрана ---- */
+.gate{
+  position:absolute;inset:0;z-index:5;
+  display:flex;align-items:center;justify-content:center;
+  padding:14px;
+  background:rgba(10,5,18,.82);
+}
+.gate[hidden]{display:none;}
+.gate-card{
+  width:min(340px,100%);
+  display:flex;flex-direction:column;gap:8px;
+  padding:clamp(14px,3vw,22px);
+  background:linear-gradient(180deg,#22103a,#170a28);
+  border:1px solid var(--edge);
+  border-radius:12px;
+  box-shadow:0 0 0 3px rgba(10,5,18,.6),0 18px 40px rgba(0,0,0,.6);
+  text-align:center;
+}
+.gate-eyebrow{
+  margin:0;font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--orange);
+}
+.gate-label{
+  font-size:clamp(15px,3.4vw,20px);letter-spacing:.08em;color:var(--bone);
+}
+.gate-note{
+  margin:0;font-size:10px;letter-spacing:.06em;color:var(--dim);
+}
+#nickInput{
+  font-family:inherit;
+  font-size:clamp(18px,4.4vw,24px);
+  letter-spacing:.16em;
+  text-align:center;
+  text-transform:uppercase;
+  color:var(--cyan);
+  background:#0f0620;
+  border:1px solid #4d2569;
+  border-radius:8px;
+  padding:12px 10px;
+  width:100%;
+  min-height:52px;
+}
+#nickInput::placeholder{color:#5a4470;letter-spacing:.16em;}
+#nickInput:focus{outline:2px solid var(--cyan);outline-offset:1px;border-color:var(--cyan);}
+#nickOk{width:100%;min-height:50px;font-size:15px;background:#3a1c58;}
+#nickOk:hover{background:#4a2470;}
+
 .panel{
   display:flex;
   flex-wrap:wrap;
@@ -224,6 +270,18 @@ button[aria-pressed="true"]{color:var(--void);background:var(--cyan);border-colo
     <canvas id="ui" width="960" height="540" aria-hidden="true"></canvas>
     <div class="fx scanlines"></div>
     <div class="fx glare"></div>
+
+    <div class="gate" id="nameGate" hidden>
+      <form class="gate-card" id="nameForm">
+        <p class="gate-eyebrow">Новый боец</p>
+        <label class="gate-label" for="nickInput">Как тебя зовут?</label>
+        <input id="nickInput" name="nick" type="text" maxlength="12"
+               autocomplete="nickname" autocapitalize="characters"
+               autocorrect="off" spellcheck="false" placeholder="ЯРИК">
+        <p class="gate-note">Имя сохранится и встанет рядом с рекордом.</p>
+        <button type="submit" id="nickOk">В бой</button>
+      </form>
+    </div>
   </div>
 
   <div class="panel">
@@ -554,11 +612,27 @@ const boss = { x: W/2, drift: 1, state: "wait", t: 0, wait: 1.2, pending: null, 
 
 let rocks = [], parts = [], craters = [], texts = [], hearts = [];
 
+/* Рекорд помнит и очки, и того, кто их поставил.
+   Старые сохранения хранили просто число — поднимаем их без потери. */
 for(const d of DIFFS){
-  let v = 0;
-  try { v = parseInt(localStorage.getItem("gromila.best." + d.id) || "0", 10) || 0; } catch(e){ v = 0; }
-  bests[d.id] = v;
+  let raw = null;
+  try { raw = localStorage.getItem("gromila.best." + d.id); } catch(e){}
+  let rec = {score:0, name:""};
+  if(raw){
+    if(raw.charAt(0) === "{"){
+      try {
+        const parsed = JSON.parse(raw);
+        rec = {score: parseInt(parsed.score,10) || 0, name: String(parsed.name || "")};
+      } catch(e){}
+    } else {
+      rec = {score: parseInt(raw,10) || 0, name: ""};
+    }
+  }
+  bests[d.id] = rec;
 }
+
+let player = "";
+try { player = (localStorage.getItem("gromila.name") || "").slice(0,12); } catch(e){}
 try {
   const saved = localStorage.getItem("gromila.diff");
   const i = DIFFS.findIndex(d => d.id === saved);
@@ -970,10 +1044,10 @@ function gameOver(){
   shake = 12;
   burst(hero.x, GROUND_Y-12, 30, 150, [P.shirt, P.hair, P.skin, P.magenta], 1);
   const id = curDiff().id;
-  newRecord = Math.floor(score) > bests[id];
+  newRecord = Math.floor(score) > bests[id].score;
   if(newRecord){
-    bests[id] = Math.floor(score);
-    try { localStorage.setItem("gromila.best." + id, String(bests[id])); } catch(e){}
+    bests[id] = {score: Math.floor(score), name: player};
+    try { localStorage.setItem("gromila.best." + id, JSON.stringify(bests[id])); } catch(e){}
   }
 }
 
@@ -1261,6 +1335,7 @@ function heartIcon(x, y, s, filled){
 }
 
 const menuRects = [];
+const nickRect = {x:0, y:0, w:0, h:0};
 
 function drawUI(){
   u.clearRect(0,0,uiC.width,uiC.height);
@@ -1300,13 +1375,31 @@ function drawUI(){
     u.restore();
     text("ЯРИК ПРОТИВ ВЕЛИКАНА", cx, CH*0.256, 16, P.orange, "center");
 
-    text("ВЫБЕРИ СЛОЖНОСТЬ", cx, CH*0.335, 14, "#8a6fa0", "center");
+    // строка игрока — по ней же меняют имя
+    const nickLine = (player || "БЕЗ ИМЕНИ").toUpperCase() + "   ✎";
+    const nickY = CH*0.312;
+    u.font = "bold " + Math.round(15*uiK) + "px ui-monospace, Consolas, 'Courier New', monospace";
+    const nickW = u.measureText(nickLine).width;
+    nickRect.x = cx - nickW/2 - 14;
+    nickRect.y = nickY - Math.round(17*uiK);
+    nickRect.w = nickW + 28;
+    nickRect.h = Math.round(25*uiK);
+    u.fillStyle = "rgba(55,230,212,.07)";
+    u.fillRect(nickRect.x, nickRect.y, nickRect.w, nickRect.h);
+    text(nickLine, cx, nickY, 15, P.cyan, "center");
+
+    text("ВЫБЕРИ СЛОЖНОСТЬ", cx, CH*0.368, 14, "#8a6fa0", "center");
 
     menuRects.length = 0;
     const wRow = Math.min(CW - 50, 440*uiK);
     const x0 = cx - wRow/2;
-    const hRow = 42*uiK;
-    const yTop = CH*0.37;
+    /* Нижние подписи прибиты к краю экрана, строки сложности занимают то,
+       что осталось — иначе при укрупнённом шрифте меню наезжает само на себя. */
+    const yBottomHint = CH - 16;
+    const yGo   = yBottomHint - 34*uiK;
+    const yHint = yGo - 30*uiK;
+    const yTop  = CH*0.40;
+    const hRow  = Math.min(42*uiK, Math.max(24, (yHint - 22*uiK - yTop) / DIFFS.length));
     for(let i=0;i<DIFFS.length;i++){
       const d = DIFFS[i];
       const y = yTop + i*hRow;
@@ -1321,18 +1414,23 @@ function drawUI(){
       const baseline = y + hRow*0.62;
       text(on ? "▶ " + d.name : "  " + d.name, x0+18, baseline, 22, on ? P.bone : "#8f74a6", "left");
       const bs = bests[d.id];
-      text(bs > 0 ? String(bs) : "—", x0+wRow-16, baseline, 16, on ? P.cyan : "#6d5580", "right",
-           bs > 0 ? "bold" : "normal");
+      // рекорд подписан именем — видно, чей результат предстоит побить
+      const mark = bs.score > 0
+        ? (bs.name && bs.name.toUpperCase() !== (player||"").toUpperCase()
+             ? bs.name.toUpperCase() + " " + bs.score
+             : String(bs.score))
+        : "—";
+      text(mark, x0+wRow-16, baseline, 15, on ? P.cyan : "#6d5580", "right",
+           bs.score > 0 ? "bold" : "normal");
     }
 
-    const yAfter = yTop + hRow*DIFFS.length;
-    text(DIFFS[menuIndex].hint, cx, yAfter+Math.round(24*uiK), narrow?12:14, "#b79ccb", "center", "normal");
+    text(DIFFS[menuIndex].hint, cx, yHint, narrow?12:14, "#b79ccb", "center", "normal");
     if(Math.floor(time*1.6) % 2 === 0)
-      text(coarse ? "КОСНИСЬ — В БОЙ" : "ПРОБЕЛ — В БОЙ", cx, yAfter+Math.round(62*uiK), 22, P.cyan, "center");
+      text(coarse ? "КОСНИСЬ — В БОЙ" : "ПРОБЕЛ — В БОЙ", cx, yGo, 22, P.cyan, "center");
 
-    text(coarse ? "веди пальцем — Ярик бежит за ним"
-               : "↑ ↓ — выбор   ·   ← → — бежать   ·   M — звук",
-         cx, CH-16, 12, "#6d5580", "center", "normal");
+    text(coarse ? "веди пальцем — Ярик бежит за ним   ·   имя сверху меняется"
+               : "↑ ↓ — выбор   ·   ← → — бежать   ·   N — имя   ·   M — звук",
+         cx, yBottomHint, 12, "#6d5580", "center", "normal");
   }
 
   if(paused){
@@ -1352,7 +1450,8 @@ function drawUI(){
     text(narrow ? runTime.toFixed(1) + " с · ВОЛНА " + wave + " · " + curDiff().name
                : "ПРОДЕРЖАЛСЯ  " + runTime.toFixed(1) + " с  ·  ВОЛНА " + wave + "  ·  " + curDiff().name,
          cx, CH*0.565, narrow?12:16, "#b79ccb", "center", "normal");
-    text(newRecord ? "НОВЫЙ РЕКОРД!" : "РЕКОРД  " + bests[curDiff().id],
+    text(newRecord ? "НОВЫЙ РЕКОРД, " + (player||"ЯРИК").toUpperCase() + "!"
+                   : "РЕКОРД  " + bests[curDiff().id].score,
          cx, CH*0.635, 20, newRecord ? P.orange : "#8a6fa0", "center");
     if(Math.floor(time*1.6) % 2 === 0)
       text(coarse ? "КОСНИСЬ — ЕЩЁ РАЗ" : "ПРОБЕЛ — ЕЩЁ РАЗ", cx, CH*0.77, 24, P.cyan, "center");
@@ -1395,8 +1494,42 @@ function resume(){
 /* ============================================================
    ВВОД
    ============================================================ */
+/* ============================================================
+   ИМЯ ИГРОКА
+   ============================================================ */
+const gateEl = document.getElementById("nameGate");
+const nickInput = document.getElementById("nickInput");
+let nameOpen = false;
+
+function openNameGate(){
+  nameOpen = true;
+  gateEl.hidden = false;
+  nickInput.value = player;
+  // без задержки мобильные браузеры игнорируют фокус и клавиатура не всплывает
+  setTimeout(() => { nickInput.focus(); nickInput.select(); }, 60);
+}
+function closeNameGate(save){
+  if(save){
+    const typed = nickInput.value.replace(/\s+/g, " ").trim().slice(0,12);
+    player = typed || player || "ЯРИК";
+    try { localStorage.setItem("gromila.name", player); } catch(e){}
+  }
+  nameOpen = false;
+  gateEl.hidden = true;
+  nickInput.blur();
+}
+document.getElementById("nameForm").addEventListener("submit", e => {
+  e.preventDefault();
+  closeNameGate(true);
+  Audio5.unlock();
+  if(soundChoice === null) setSound(true, false);
+  Audio5.sfx("heart");
+});
+if(!player) openNameGate();
+
 function action(){
   Audio5.unlock();
+  if(nameOpen) return;
   if(paused){ resume(); return; }
   // сами включаем звук только пока игрок не высказался — выключил, значит выключено
   if(soundChoice === null) setSound(true, false);
@@ -1408,6 +1541,10 @@ function moveMenu(step){
   Audio5.sfx("dodge");
 }
 window.addEventListener("keydown", e => {
+  if(nameOpen){                       // пока вводят имя, игра клавиши не трогает
+    if(e.code === "Escape" && player) closeNameGate(false);
+    return;
+  }
   if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Space"].includes(e.code)) e.preventDefault();
   if(e.repeat && (e.code === "ArrowUp" || e.code === "ArrowDown")) return;
   keys[e.code] = true;
@@ -1418,6 +1555,7 @@ window.addEventListener("keydown", e => {
   if(e.code === "Space" || e.code === "Enter") action();
   if(e.code === "Escape" && state !== "menu") toMenu();
   if(e.code === "KeyM") setSound(!Audio5.isEnabled(), true);
+  if(e.code === "KeyN" && state === "menu") openNameGate();
 });
 window.addEventListener("keyup", e => { keys[e.code] = false; });
 window.addEventListener("blur", () => { for(const k in keys) keys[k] = false; pressed.left = pressed.right = false; });
@@ -1428,13 +1566,19 @@ function pointerAt(e){
   touchX = clamp((e.clientX - r.left) / r.width * W, HERO_MIN_X, HERO_MAX_X);
 }
 screenEl.addEventListener("pointerdown", e => {
+  if(nameOpen) return;
   screenEl.setPointerCapture && screenEl.setPointerCapture(e.pointerId);
   if(paused){ resume(); return; }
   if(state === "menu"){
-    // координаты клика — в системе интерфейсного холста 960x540
+    // координаты клика — в системе интерфейсного холста
     const r = screenEl.getBoundingClientRect();
     const ux = (e.clientX - r.left) / r.width  * uiC.width;
     const uy = (e.clientY - r.top)  / r.height * uiC.height;
+    if(ux >= nickRect.x && ux <= nickRect.x+nickRect.w &&
+       uy >= nickRect.y && uy <= nickRect.y+nickRect.h){
+      openNameGate();
+      return;
+    }
     const row = menuRects.find(m => ux >= m.x && ux <= m.x+m.w && uy >= m.y && uy <= m.y+m.h);
     if(row){
       if(row.i !== menuIndex){ menuIndex = row.i; Audio5.sfx("dodge"); return; }
