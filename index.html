@@ -261,7 +261,7 @@ button[aria-pressed="true"]{color:var(--void);background:var(--cyan);border-colo
 <main class="cabinet">
   <div class="marquee">
     <h1>Громила</h1>
-    <span class="sub">Ярик против великана · 1986</span>
+    <span class="sub" id="marqueeSub">Ярик против великана · 1986</span>
   </div>
 
   <div class="screen" id="screen">
@@ -377,7 +377,7 @@ const P = {
    ============================================================ */
 const BOSSES = [
   {
-    id:"gromila", name:"ГРОМИЛА", ammo:"камни",
+    id:"gromila", name:"ГРОМИЛА", vs:"ГРОМИЛЫ", ammo:"камни",
     hint:"Швыряет камни с дальнего плато. Медленно, зато тяжело.",
     kit:{fly:1.00, gap:1.00, hitR:13, bigR:26, arc:46, spin:9},
     sfx:{throw:"throw", land:"impact", big:"boom"},
@@ -395,7 +395,7 @@ const BOSSES = [
     shot:{main:"#8b8496", lo:"#5d5769", hi:"#b6afc2", dust:["#8b8496","#5d5769","#5f2c72","#b6afc2"]}
   },
   {
-    id:"strelok", name:"СТРЕЛОК", ammo:"стрелы",
+    id:"strelok", name:"СТРЕЛОК", vs:"СТРЕЛКА", ammo:"стрелы",
     hint:"Бьёт стрелами из ночного леса. Летят быстро и жалят точно.",
     kit:{fly:0.78, gap:0.92, hitR:10, bigR:20, arc:30, spin:0},
     sfx:{throw:"twang", land:"thud", big:"boom"},
@@ -413,7 +413,7 @@ const BOSSES = [
     shot:{main:"#c9a06a", lo:"#8a6a42", hi:"#efe0c0", dust:["#c9a06a","#8a6a42","#31543a","#efe0c0"]}
   },
   {
-    id:"snegovik", name:"СНЕГОВИК", ammo:"снежки",
+    id:"snegovik", name:"СНЕГОВИК", vs:"СНЕГОВИКА", ammo:"снежки",
     hint:"Лепит снежки. Комья лежат на земле — не наступай.",
     kit:{fly:1.22, gap:0.86, hitR:16, bigR:30, arc:58, spin:5},
     sfx:{throw:"whoosh", land:"pack", big:"boom"},
@@ -2054,7 +2054,9 @@ function drawUI(){
     u.scale(pulse, pulse);
     chromaText("ГРОМИЛА", 0, 0, 66);
     u.restore();
-    text("ЯРИК ПРОТИВ ВЕЛИКАНА", cx, CH*0.256, 16, P.orange, "center");
+    // подзаголовок называет того, кто играет, и того, против кого
+    text(((player || "ЯРИК") + " ПРОТИВ " + curBoss().vs).toUpperCase(),
+         cx, CH*0.256, narrow ? 13 : 16, P.orange, "center");
 
     // строка игрока — по ней же меняют имя
     const nickLine = (player || "без имени") + "   ✎";
@@ -2294,6 +2296,7 @@ function closeNameGate(save){
     if(!typed) return false;          // без имени не выпускаем: в таблице оно обязано быть своим
     player = typed;
     try { localStorage.setItem("gromila.name", player); } catch(e){}
+    updateMarquee();
   }
   nameOpen = false;
   gateEl.hidden = true;
@@ -2337,11 +2340,18 @@ function moveMenu(step){
   Audio5.sfx("dodge");
 }
 /* Смена соперника меняет мир целиком: палитру, фигуру и снаряд */
+/* Надпись над экраном повторяет пару «игрок против соперника» */
+function updateMarquee(){
+  const sub = document.getElementById("marqueeSub");
+  if(sub) sub.textContent = (player || "Ярик") + " против " + curBoss().vs.toLowerCase() + " · 1986";
+}
+
 function applyBoss(i){
   bossIndex = (i + BOSSES.length) % BOSSES.length;
   T = curBoss().theme;
   B = curBoss().body;
   loadBests();                       // у каждого соперника свой зачёт
+  updateMarquee();
   try { localStorage.setItem("gromila.boss", curBoss().id); } catch(e){}
 }
 function shiftBoss(step){
@@ -2502,6 +2512,7 @@ function relayout(){
 }
 
 relayout();
+updateMarquee();
 window.addEventListener("resize", relayout);
 window.addEventListener("orientationchange", () => setTimeout(relayout, 250));
 
