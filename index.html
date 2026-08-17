@@ -637,6 +637,14 @@ const Audio5 = (function(){
         case "heart":
           [0,0.07,0.14,0.21].forEach((d,i)=>tone("square", mtof(72+i*4), t+d, 0.10, 0.14, sfxBus));
           break;
+        case "shield":                       // подобрал щит — тёплый аккорд
+          [64,68,71,76].forEach((n,i)=>tone("triangle", mtof(n), t+i*0.05, 0.34, 0.13, sfxBus));
+          noise(t, 0.25, 0.06, 3000, 1.4, 6000);
+          break;
+        case "shieldBreak":                  // щит принял удар и рассыпался
+          tone("triangle", 720, t, 0.22, 0.20, sfxBus, 240);
+          noise(t, 0.26, 0.18, 2200, 1.1, 500);
+          break;
         case "roar":
           tone("sawtooth", 90, t, 0.75, 0.30, sfxBus, 42);
           noise(t, 0.75, 0.22, 320, 0.7, 120);
@@ -779,7 +787,7 @@ const bests = {};
 let shake = 0, flash = 0, rageFlash = 0;
 let dodgeStreak = 0;
 
-const hero = { x: W/2, vx: 0, dir: 1, walk: 0, lives: 3, inv: 0, alive: true };
+const hero = { x: W/2, vx: 0, dir: 1, walk: 0, lives: 3, inv: 0, alive: true, shield: 0 };
 const boss = { x: W/2, drift: 1, state: "wait", t: 0, wait: 1.2, pending: null, arm: 0, recoil: 0, roar: 0, hue: 0 };
 
 let rocks = [], parts = [], craters = [], texts = [], hearts = [], hazards = [];
@@ -891,6 +899,50 @@ function buildScenery(){
   stars  = Array.from({length:70},  () => ({x:Math.random()*W, y:Math.random()*HORIZON_Y*0.78, p:Math.random()*6.28, s:Math.random()<0.25?2:1}));
   specks = Array.from({length:120}, () => ({x:Math.random()*W, y:GROUND_TOP+Math.random()*(H-GROUND_TOP), w:Math.random()<0.3?2:1}));
   ridge  = Array.from({length:40},  (_,i) => HORIZON_Y-20 - Math.abs(Math.sin(i*1.7))*26 - (i%3)*3);
+}
+
+/* ============================================================
+   ПИКСЕЛЬНЫЕ СПРАЙТЫ
+   Одни и те же карты рисуются и в мире, и в интерфейсе — поэтому
+   падающее сердце выглядит ровно так же, как сердце в шапке.
+   ============================================================ */
+const HEART = [
+  "01100110",
+  "11111111",
+  "11111111",
+  "11111111",
+  "01111110",
+  "00111100",
+  "00011000"
+];
+const SHIELD = [
+  "01111110",
+  "11111111",
+  "11111111",
+  "11111111",
+  "01111110",
+  "00111100",
+  "00011000"
+];
+
+function paintSprite(ctx2, map, x, y, s, body, edge, shine){
+  const w = map[0].length;
+  if(edge){
+    ctx2.fillStyle = edge;
+    for(let r=0;r<map.length;r++)
+      for(let c=0;c<w;c++)
+        if(map[r][c] === "1") ctx2.fillRect(x + c*s + s*0.35, y + r*s + s*0.35, s, s);
+  }
+  ctx2.fillStyle = body;
+  for(let r=0;r<map.length;r++)
+    for(let c=0;c<w;c++)
+      if(map[r][c] === "1") ctx2.fillRect(x + c*s, y + r*s, s, s);
+  if(shine){
+    ctx2.fillStyle = shine;
+    ctx2.fillRect(x + s, y + s, s, s);
+    ctx2.fillRect(x + 2*s, y + s, s, s);
+    ctx2.fillRect(x + s, y + 2*s, s, s);
+  }
 }
 
 /* ============================================================
@@ -1225,6 +1277,16 @@ function drawGromila(){
    ЯРИК
    ============================================================ */
 function drawHero(){
+  // купол щита: перед тем как погаснуть, начинает мигать
+  if(hero.shield > 0 && !(hero.shield < 1.2 && Math.floor(hero.shield*8) % 2 === 0)){
+    const rr = 13 + Math.sin(time*6)*1;
+    g.globalAlpha = 0.75;
+    ring(hero.x, GROUND_Y-11, rr, rr*1.15, P.cyan, 1);
+    g.globalAlpha = 0.18;
+    g.fillStyle = P.cyan;
+    g.beginPath(); g.ellipse(hero.x, GROUND_Y-11, rr, rr*1.15, 0, 0, Math.PI*2); g.fill();
+    g.globalAlpha = 1;
+  }
   if(hero.inv > 0 && Math.floor(hero.inv*14) % 2 === 0) return;
   const x = hero.x|0, y = GROUND_Y;
   const moving = Math.abs(hero.vx) > 4;
@@ -1511,6 +1573,17 @@ function freeTheLane(){
 
 /* Урон Ярику — от прилетевшего снаряда или от того, что лежит на земле */
 function hurtHero(){
+  // щит принимает удар на себя и на этом заканчивается
+  if(hero.shield > 0){
+    hero.shield = 0;
+    hero.inv = 1.0;
+    flash = 0.6;
+    Audio5.sfx("shieldBreak");
+    buzz(25);
+    burst(hero.x, GROUND_Y-14, 22, 130, [P.cyan, P.bone, "#c7fff8"], 1);
+    say("ЩИТ ДЕРЖИТ!", hero.x, GROUND_Y-44, P.cyan, true);
+    return;
+  }
   hero.lives--;
   hero.inv = 1.6;
   flash = 1;
@@ -1568,7 +1641,11 @@ function land(rk){
 }
 
 function spawnHeart(){
-  hearts.push({x: rnd(50, W-50), y: -10, life: 9, got:false});
+  // если жизни на исходе — чаще сердце, если и так полные — чаще щит
+  const needLife = hero.lives < curDiff().lives;
+  const kind = hero.shield > 0 ? "heart"
+             : (Math.random() < (needLife ? 0.65 : 0.3) ? "heart" : "shield");
+  hearts.push({x: rnd(50, W-50), y: -10, life: 9, kind});
 }
 
 let newRecord = false;
@@ -1611,7 +1688,7 @@ function reset(){
   runTime = 0; score = 0; wave = 1; dodgeStreak = 0; rageTimer = 0; heartTimer = 22;
   newRecord = false; sentState = "off"; rankState = "idle"; rank = null;
   aimNow = 0; aimAnnounced = 0;
-  hero.x = W/2; hero.vx = 0; hero.lives = curDiff().lives; hero.inv = 0; hero.alive = true; hero.walk = 0;
+  hero.x = W/2; hero.vx = 0; hero.lives = curDiff().lives; hero.inv = 0; hero.alive = true; hero.walk = 0; hero.shield = 0;
   boss.x = W/2; boss.state = "wait"; boss.t = 0; boss.wait = 0.9; boss.pending = null; boss.roar = 0;
   rocks = []; parts = []; craters = []; texts = []; hearts = []; hazards = [];
   shake = 0; flash = 0; rageFlash = 0;
@@ -1675,6 +1752,10 @@ function update(dt){
   if(target !== 0) hero.dir = target > 0 ? 1 : -1;
   hero.walk += Math.abs(hero.vx)/speed * dt;
   if(hero.inv > 0) hero.inv -= dt;
+  if(hero.shield > 0 && state === "play"){
+    hero.shield -= dt;
+    if(hero.shield <= 0){ hero.shield = 0; say("щит погас", hero.x, GROUND_Y-40, "#8a6fa0"); }
+  }
 
   // босс: бродит и швыряет
   boss.x += boss.drift * dt * (11 + d.k*9);
@@ -1751,10 +1832,17 @@ function update(dt){
     ht.y = Math.min(GROUND_Y-30, ht.y + 42*dt);
     ht.life -= dt;
     if(Math.abs(ht.x - hero.x) < 12 && ht.y > GROUND_Y-46 && state === "play"){
-      hero.lives = Math.min(5, hero.lives+1);
-      Audio5.sfx("heart");
-      say("+1 ЖИЗНЬ", hero.x, GROUND_Y-52, P.cyan, true);
-      burst(ht.x, ht.y, 14, 70, [P.magenta, P.bone], -1);
+      if(ht.kind === "shield"){
+        hero.shield = 5;                       // держится пять секунд или до первого удара
+        Audio5.sfx("shield");
+        say("ЩИТ!", hero.x, GROUND_Y-52, P.cyan, true);
+        burst(ht.x, ht.y, 16, 80, [P.cyan, P.bone, "#c7fff8"], -1);
+      } else {
+        hero.lives = Math.min(5, hero.lives+1);
+        Audio5.sfx("heart");
+        say("+1 ЖИЗНЬ", hero.x, GROUND_Y-52, P.magenta, true);
+        burst(ht.x, ht.y, 14, 70, [P.magenta, P.bone], -1);
+      }
       hearts.splice(i,1); continue;
     }
     if(ht.life <= 0) hearts.splice(i,1);
@@ -1856,16 +1944,19 @@ function render(){
     g.globalAlpha = 1;
   }
 
-  // сердечки
+  // падающие подарки: сердце и щит — теми же спрайтами, что и в шапке
   for(const ht of hearts){
     const blink = ht.life < 3 && Math.floor(ht.life*8)%2 === 0;
     if(blink) continue;
     const y = ht.y + Math.sin(time*5)*2;
-    px(ht.x-3, y-3, 2, 2, P.magenta); px(ht.x+1, y-3, 2, 2, P.magenta);
-    px(ht.x-4, y-1, 8, 3, P.magenta);
-    px(ht.x-3, y+2, 6, 2, P.magenta);
-    px(ht.x-1, y+4, 2, 1, P.magenta);
-    px(ht.x-3, y-2, 2, 1, "#ff8fb0");
+    const shield = ht.kind === "shield";
+    g.globalAlpha = 0.5;
+    disc(ht.x, y+7, 5, T.shade);
+    g.globalAlpha = 1;
+    paintSprite(g, shield ? SHIELD : HEART, Math.round(ht.x-4), Math.round(y-4), 1,
+      shield ? P.cyan   : P.magenta,
+      shield ? "#0f5f58" : "#7a1030",
+      shield ? "#c7fff8" : "#ff9ec2");
   }
 
   // камни в полёте
@@ -1969,43 +2060,11 @@ function bigButton(label, y, rect, size){
   u.fillText(label, CW/2, rect.y + rect.h*0.68);
 }
 
-/* Пиксельное сердце 8×7 — с обводкой, чтобы читалось на любом фоне,
-   и с бликом, чтобы полное сердце отличалось от потраченного не только цветом. */
-const HEART = [
-  "01100110",
-  "11111111",
-  "11111111",
-  "11111111",
-  "01111110",
-  "00111100",
-  "00011000"
-];
 function heartIcon(x, y, s, filled){
-  const body  = filled ? P.magenta : "rgba(246,231,193,.16)";
-  const edge  = filled ? "#7a1030" : "rgba(246,231,193,.10)";
-  const shine = filled ? "#ff9ec2" : null;
-
-  for(let r=0;r<HEART.length;r++){
-    for(let c=0;c<8;c++){
-      if(HEART[r][c] !== "1") continue;
-      // обводка: тень на пиксель ниже и правее
-      u.fillStyle = edge;
-      u.fillRect(x + c*s + s*0.35, y + r*s + s*0.35, s, s);
-    }
-  }
-  for(let r=0;r<HEART.length;r++){
-    for(let c=0;c<8;c++){
-      if(HEART[r][c] !== "1") continue;
-      u.fillStyle = body;
-      u.fillRect(x + c*s, y + r*s, s, s);
-    }
-  }
-  if(shine){
-    u.fillStyle = shine;
-    u.fillRect(x + s, y + s, s, s);
-    u.fillRect(x + 2*s, y + s, s, s);
-    u.fillRect(x + s, y + 2*s, s, s);
-  }
+  paintSprite(u, HEART, x, y, s,
+    filled ? P.magenta : "rgba(246,231,193,.16)",
+    filled ? "#7a1030" : "rgba(246,231,193,.10)",
+    filled ? "#ff9ec2" : null);
 }
 
 const menuRects = [];
@@ -2029,6 +2088,15 @@ function drawUI(){
     const slots = Math.max(curDiff().lives, hero.lives);
     // сердце занимает 8 клеток, между ними — две клетки воздуха
     for(let i=0;i<slots;i++) heartIcon(20 + i*hs*10, row1 - hs*7, hs, i < hero.lives);
+    // щит стоит рядом с сердцами и показывает, сколько ему осталось
+    if(hero.shield > 0){
+      const sx = 20 + slots*hs*10 + hs*4, sy = row1 - hs*7;
+      paintSprite(u, SHIELD, sx, sy, hs, P.cyan, "#0f5f58", "#c7fff8");
+      u.fillStyle = "rgba(55,230,212,.35)";
+      u.fillRect(sx, sy + hs*8, hs*8, hs);
+      u.fillStyle = P.cyan;
+      u.fillRect(sx, sy + hs*8, hs*8 * clamp(hero.shield/5, 0, 1), hs);
+    }
     text("ОЧКИ " + String(Math.floor(score)).padStart(6,"0"), CW-20, row1, narrow ? 17 : 22, P.bone, "right");
 
     if(narrow){
