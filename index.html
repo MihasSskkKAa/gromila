@@ -1652,7 +1652,7 @@ function drawUI(){
     text(narrow ? runTime.toFixed(1) + " с · ВОЛНА " + wave + " · " + curDiff().name
                : "ПРОДЕРЖАЛСЯ  " + runTime.toFixed(1) + " с  ·  ВОЛНА " + wave + "  ·  " + curDiff().name,
          cx, CH*0.565, narrow?12:16, "#b79ccb", "center", "normal");
-    text(newRecord ? "НОВЫЙ РЕКОРД, " + (player||"ЯРИК").toUpperCase() + "!"
+    text(newRecord ? (player ? "НОВЫЙ РЕКОРД, " + player.toUpperCase() + "!" : "НОВЫЙ РЕКОРД!")
                    : "РЕКОРД  " + bests[curDiff().id].score,
          cx, CH*0.635, 20, newRecord ? P.orange : "#8a6fa0", "center");
     // место в общем зачёте — главное, что хочется увидеть после боя
@@ -1715,33 +1715,52 @@ function resume(){
    ============================================================ */
 const gateEl = document.getElementById("nameGate");
 const nickInput = document.getElementById("nickInput");
+const gateNote = document.querySelector(".gate-note");
+const gateNoteDefault = gateNote.textContent;
 let nameOpen = false;
 
-function openNameGate(){
+function openNameGate(clear){
   nameOpen = true;
   gateEl.hidden = false;
-  nickInput.value = player;
+  nickInput.value = clear ? "" : player;
   // без задержки мобильные браузеры игнорируют фокус и клавиатура не всплывает
   setTimeout(() => { nickInput.focus(); nickInput.select(); }, 60);
 }
+/* Возвращает false, если имя не приняли — окно остаётся открытым */
 function closeNameGate(save){
   if(save){
     const typed = nickInput.value.replace(/\s+/g, " ").trim().slice(0,12);
-    player = typed || player || "ЯРИК";
+    if(!typed) return false;          // без имени не выпускаем: в таблице оно обязано быть своим
+    player = typed;
     try { localStorage.setItem("gromila.name", player); } catch(e){}
   }
   nameOpen = false;
   gateEl.hidden = true;
   nickInput.blur();
+  return true;
 }
 document.getElementById("nameForm").addEventListener("submit", e => {
   e.preventDefault();
-  closeNameGate(true);
+  if(!closeNameGate(true)){
+    // подсказываем, что поле пустое, вместо молчаливой подстановки чужого имени
+    gateNote.textContent = "Впиши имя — под ним результат попадёт в таблицу.";
+    gateNote.style.color = "var(--magenta)";
+    nickInput.focus();
+    return;
+  }
+  gateNote.textContent = gateNoteDefault;
+  gateNote.style.color = "";
   Audio5.unlock();
   if(soundChoice === null) setSound(true, false);
   Audio5.sfx("heart");
 });
-if(!player) openNameGate();
+/* Ранние сборки молча подставляли «ЯРИК», если поле оставили пустым.
+   У кого осело такое имя — переспрашиваем один раз, дальше не пристаём. */
+let nameAsked = false;
+try { nameAsked = localStorage.getItem("gromila.nameAsked") === "1"; } catch(e){}
+const stubName = player.toUpperCase() === "ЯРИК" && !nameAsked;
+if(!player || stubName) openNameGate(stubName);
+try { localStorage.setItem("gromila.nameAsked", "1"); } catch(e){}
 
 function action(){
   Audio5.unlock();
