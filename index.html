@@ -1281,16 +1281,46 @@ function drawShot(x, y, r, sc, rk){
   x = x|0; y = y|0;
 
   if(curBoss().id === "strelok"){
-    // стрела летит носом вперёд по своей дуге
-    const len = Math.max(6, Math.round(R*2.6));
-    const ang = rk && rk.dir !== undefined ? rk.dir : 1.2;
-    const dx = Math.cos(ang), dy = Math.sin(ang);
-    limb(x - dx*len*0.5, y - dy*len*0.5, x + dx*len*0.35, y + dy*len*0.35,
-         Math.max(1, Math.round(R*0.22)), S.main);
-    // наконечник
-    px(x + dx*len*0.4 - 1, y + dy*len*0.4 - 1, Math.max(2,R*0.5), Math.max(2,R*0.5), S.hi);
-    // оперение
-    px(x - dx*len*0.55, y - dy*len*0.55, Math.max(2,R*0.5), Math.max(2,R*0.5), "#d8574f");
+    /* Стрела: древко, гранёный наконечник и оперение — всё разворачивается
+       по направлению полёта, поэтому в дуге она ведёт себя как настоящая. */
+    const ang  = rk && rk.dir !== undefined ? rk.dir : 1.3;
+    const len  = Math.max(11, R*3.4);
+    const sh   = Math.max(1, R*0.34);          // толщина древка
+    const head = Math.max(2.2, R*0.85);        // размах наконечника
+    const tail = Math.max(2, R*0.8);           // размах оперения
+
+    g.save();
+    g.translate(x, y);
+    g.rotate(ang);
+
+    g.fillStyle = S.lo;                        // тень древка снизу
+    g.fillRect(-len*0.52, -sh*0.1, len*0.92, sh);
+    g.fillStyle = S.main;                      // само древко
+    g.fillRect(-len*0.52, -sh*0.9, len*0.92, sh);
+
+    g.fillStyle = S.hi;                        // наконечник
+    g.beginPath();
+    g.moveTo(len*0.50, 0);
+    g.lineTo(len*0.22, -head);
+    g.lineTo(len*0.30, 0);
+    g.lineTo(len*0.22, head);
+    g.closePath(); g.fill();
+
+    g.fillStyle = "#d8574f";                   // два пера у хвоста
+    g.beginPath();
+    g.moveTo(-len*0.52, 0);
+    g.lineTo(-len*0.26, -tail);
+    g.lineTo(-len*0.12, -tail*0.55);
+    g.lineTo(-len*0.34, 0);
+    g.closePath(); g.fill();
+    g.beginPath();
+    g.moveTo(-len*0.52, 0);
+    g.lineTo(-len*0.26, tail);
+    g.lineTo(-len*0.12, tail*0.55);
+    g.lineTo(-len*0.34, 0);
+    g.closePath(); g.fill();
+
+    g.restore();
     return;
   }
 
@@ -1432,7 +1462,11 @@ function land(rk){
   const inZone = dist < hitR;
 
   shake = Math.max(shake, big ? 9 : 5);
-  craters.push({x: rk.tx, r: big?15:9, life: 5});
+  craters.push({
+    x: rk.tx, r: big?15:9, life: 5,
+    stuck: curBoss().id === "strelok" && !big,     // стрела остаётся торчать
+    tilt: rnd(-0.5, 0.5)
+  });
   burst(rk.tx, GROUND_Y, big?26:14, big?150:105, curBoss().shot.dust, 1);
   Audio5.sfx(big ? curBoss().sfx.big : curBoss().sfx.land);
 
@@ -1689,6 +1723,12 @@ function render(){
     disc(c.x, GROUND_Y+1, c.r, T.crater[0]);
     disc(c.x, GROUND_Y, Math.max(1,c.r-3), T.crater[1]);
     g.globalAlpha = 1;
+    if(c.stuck){                        // воткнувшаяся стрела торчит из земли
+      g.globalAlpha = a;
+      drawShot(c.x + Math.sin(c.tilt)*6, GROUND_Y - 7, 6, 1,
+               {dir: -Math.PI/2 + c.tilt});
+      g.globalAlpha = 1;
+    }
   }
 
   // маркеры падения
