@@ -414,7 +414,7 @@ const BOSSES = [
   },
   {
     id:"snegovik", name:"СНЕГОВИК", ammo:"снежки",
-    hint:"Лепит снежки на морозе. Летят долго, накрывают широко.",
+    hint:"Лепит снежки. Комья лежат на земле — не наступай.",
     kit:{fly:1.22, gap:0.86, hitR:16, bigR:30, arc:58, spin:5},
     sfx:{throw:"whoosh", land:"pack", big:"boom"},
     theme:{
@@ -782,7 +782,7 @@ let dodgeStreak = 0;
 const hero = { x: W/2, vx: 0, dir: 1, walk: 0, lives: 3, inv: 0, alive: true };
 const boss = { x: W/2, drift: 1, state: "wait", t: 0, wait: 1.2, pending: null, arm: 0, recoil: 0, roar: 0, hue: 0 };
 
-let rocks = [], parts = [], craters = [], texts = [], hearts = [];
+let rocks = [], parts = [], craters = [], texts = [], hearts = [], hazards = [];
 let aimNow = 0, aimAnnounced = 0;   // насколько Громила пристрелялся и о чём уже предупредил
 
 /* Рекорд помнит и очки, и того, кто их поставил, и считается отдельно
@@ -1455,6 +1455,19 @@ function rockAt(rk){
 
 const hitRadiusOf = rk => rk.kind === "boulder" ? curBoss().kit.bigR : curBoss().kit.hitR;
 
+/* Урон Ярику — от прилетевшего снаряда или от того, что лежит на земле */
+function hurtHero(){
+  hero.lives--;
+  hero.inv = 1.6;
+  flash = 1;
+  dodgeStreak = 0;
+  Audio5.sfx("hurt");
+  buzz(hero.lives > 0 ? 45 : [60,50,90]);
+  burst(hero.x, GROUND_Y-14, 18, 120, [P.magenta, P.bone, P.shirt], 1);
+  say(hero.lives > 0 ? "АЙ!" : "ОЙ-Й!", hero.x, GROUND_Y-40, P.magenta);
+  if(hero.lives <= 0) gameOver();
+}
+
 function land(rk){
   const big = rk.kind === "boulder";
   const hitR = hitRadiusOf(rk);
@@ -1467,21 +1480,18 @@ function land(rk){
     stuck: curBoss().id === "strelok" && !big,     // стрела остаётся торчать
     tilt: rnd(-0.5, 0.5)
   });
+
+  // снежок не разбивается: комом лежит на земле и мешает бегать
+  if(curBoss().id === "snegovik"){
+    hazards.push({x: rk.tx, r: big ? 15 : 11, life: 2, max: 2, spent: false});
+  }
   burst(rk.tx, GROUND_Y, big?26:14, big?150:105, curBoss().shot.dust, 1);
   Audio5.sfx(big ? curBoss().sfx.big : curBoss().sfx.land);
 
   if(state !== "play") return;
 
   if(inZone && hero.inv <= 0){
-    hero.lives--;
-    hero.inv = 1.6;
-    flash = 1;
-    dodgeStreak = 0;
-    Audio5.sfx("hurt");
-    buzz(hero.lives > 0 ? 45 : [60,50,90]);
-    burst(hero.x, GROUND_Y-14, 18, 120, [P.magenta, P.bone, P.shirt], 1);
-    say(hero.lives > 0 ? "АЙ!" : "ОЙ-Й!", hero.x, GROUND_Y-40, P.magenta);
-    if(hero.lives <= 0) gameOver();
+    hurtHero();
   } else if(!inZone && rk.threat){
     // засчитываем только настоящий уход: камень шёл в Ярика, а он успел выйти
     dodgeStreak++;
@@ -1542,7 +1552,7 @@ function reset(){
   aimNow = 0; aimAnnounced = 0;
   hero.x = W/2; hero.vx = 0; hero.lives = curDiff().lives; hero.inv = 0; hero.alive = true; hero.walk = 0;
   boss.x = W/2; boss.state = "wait"; boss.t = 0; boss.wait = 0.9; boss.pending = null; boss.roar = 0;
-  rocks = []; parts = []; craters = []; texts = []; hearts = [];
+  rocks = []; parts = []; craters = []; texts = []; hearts = []; hazards = [];
   shake = 0; flash = 0; rageFlash = 0;
 }
 
@@ -1699,6 +1709,19 @@ function update(dt){
     if(p.life <= 0) parts.splice(i,1);
   }
   for(let i=craters.length-1;i>=0;i--){ craters[i].life -= dt; if(craters[i].life<=0) craters.splice(i,1); }
+
+  // лежащие комья: наступил — получил, но каждый ком бьёт только раз
+  for(let i=hazards.length-1;i>=0;i--){
+    const hz = hazards[i];
+    hz.life -= dt;
+    if(state === "play" && !hz.spent && hero.inv <= 0 &&
+       Math.abs(hero.x - hz.x) < hz.r + 4){
+      hz.spent = true;
+      burst(hz.x, GROUND_Y-4, 14, 90, curBoss().shot.dust, 1);
+      hurtHero();
+    }
+    if(hz.life <= 0) hazards.splice(i,1);
+  }
   for(let i=texts.length-1;i>=0;i--){ texts[i].life -= dt; texts[i].y -= dt*14; if(texts[i].life<=0) texts.splice(i,1); }
 
   shake = Math.max(0, shake - dt*26);
@@ -1731,6 +1754,24 @@ function render(){
                {dir: -Math.PI/2 + c.tilt});
       g.globalAlpha = 1;
     }
+  }
+
+  // комья снега на земле — по ним видно, куда не стоит бежать
+  for(const hz of hazards){
+    const t = clamp(hz.life/hz.max, 0, 1);
+    const fading = hz.life < 0.6 && Math.floor(hz.life*10) % 2 === 0;
+    if(fading) continue;
+    const S = curBoss().shot;
+    g.globalAlpha = 0.35;
+    disc(hz.x, GROUND_Y+2, hz.r, T.shade);
+    g.globalAlpha = 1;
+    const r = Math.max(3, Math.round(hz.r*(0.7 + t*0.3)));
+    disc(hz.x, GROUND_Y - r*0.35, r, S.lo);
+    disc(hz.x - 1, GROUND_Y - r*0.5, Math.max(2, r-2), S.main);
+    px(hz.x - r*0.5, GROUND_Y - r*0.9, Math.max(1, r*0.4), Math.max(1, r*0.3), S.hi);
+    g.globalAlpha = 0.5 + Math.sin(time*8)*0.2;
+    ring(hz.x, GROUND_Y+2, r+3, (r+3)*0.34, T.markHot, 1);
+    g.globalAlpha = 1;
   }
 
   // маркеры падения
