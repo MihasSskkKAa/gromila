@@ -1455,6 +1455,32 @@ function rockAt(rk){
 
 const hitRadiusOf = rk => rk.kind === "boulder" ? curBoss().kit.bigR : curBoss().kit.hitR;
 
+/* Комья должны мешать, но не запирать. Новый ком не появляется, если
+   комьев уже много, если он ляжет вплотную к соседнему или если после
+   него у Ярика не останется коридора, куда отбежать. */
+const SNOW_LIMIT = 3;          // сколько комьев может лежать разом
+const SNOW_GAP   = 20;         // просвет между зонами удара соседних комьев
+const SNOW_LANE  = 56;         // сколько места остаётся Ярику для манёвра
+const snowHitR   = r => r + 4; // ком бьёт чуть шире, чем нарисован
+
+function canDropSnow(x, r){
+  const live = hazards.filter(h => h.life > 0.3);
+  if(live.length >= SNOW_LIMIT) return false;
+  // между зонами удара должен оставаться проход, а не щель в пару пикселей
+  for(const h of live){
+    if(Math.abs(h.x - x) < snowHitR(h.r) + snowHitR(r) + SNOW_GAP) return false;
+  }
+  // и у Ярика должен остаться коридор, куда отбежать
+  let left = HERO_MIN_X - 10, right = HERO_MAX_X + 10;
+  const blocks = live.map(h => [h.x - snowHitR(h.r), h.x + snowHitR(h.r)]);
+  blocks.push([x - snowHitR(r), x + snowHitR(r)]);
+  for(const [a, b] of blocks){
+    if(b < hero.x) left  = Math.max(left, b);
+    if(a > hero.x) right = Math.min(right, a);
+  }
+  return (right - left) >= SNOW_LANE;
+}
+
 /* Урон Ярику — от прилетевшего снаряда или от того, что лежит на земле */
 function hurtHero(){
   hero.lives--;
@@ -1483,7 +1509,14 @@ function land(rk){
 
   // снежок не разбивается: комом лежит на земле и мешает бегать
   if(curBoss().id === "snegovik"){
-    hazards.push({x: rk.tx, r: big ? 15 : 11, life: 2, max: 2, spent: false});
+    const r = big ? 15 : 11;
+    if(canDropSnow(rk.tx, r)){
+      hazards.push({
+        x: rk.tx, r, life: 2, max: 2,
+        // если ком лёг прямо на Ярика, удар уже засчитан снарядом — второй раз не бьём
+        spent: Math.abs(hero.x - rk.tx) < r + 4
+      });
+    }
   }
   burst(rk.tx, GROUND_Y, big?26:14, big?150:105, curBoss().shot.dust, 1);
   Audio5.sfx(big ? curBoss().sfx.big : curBoss().sfx.land);
@@ -1715,7 +1748,7 @@ function update(dt){
     const hz = hazards[i];
     hz.life -= dt;
     if(state === "play" && !hz.spent && hero.inv <= 0 &&
-       Math.abs(hero.x - hz.x) < hz.r + 4){
+       Math.abs(hero.x - hz.x) < snowHitR(hz.r)){
       hz.spent = true;
       burst(hz.x, GROUND_Y-4, 14, 90, curBoss().shot.dust, 1);
       hurtHero();
