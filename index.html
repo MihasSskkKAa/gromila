@@ -134,7 +134,6 @@ body{
   font-size:clamp(18px,4.4vw,24px);
   letter-spacing:.16em;
   text-align:center;
-  text-transform:uppercase;
   color:var(--cyan);
   background:#0f0620;
   border:1px solid #4d2569;
@@ -276,8 +275,8 @@ button[aria-pressed="true"]{color:var(--void);background:var(--cyan);border-colo
         <p class="gate-eyebrow">Новый боец</p>
         <label class="gate-label" for="nickInput">Как тебя зовут?</label>
         <input id="nickInput" name="nick" type="text" maxlength="12"
-               autocomplete="nickname" autocapitalize="characters"
-               autocorrect="off" spellcheck="false" placeholder="ЯРИК">
+               autocomplete="nickname" autocapitalize="off"
+               autocorrect="off" spellcheck="false" placeholder="Ярик">
         <p class="gate-note">Имя сохранится и встанет рядом с рекордом.</p>
         <button type="submit" id="nickOk">В бой</button>
       </form>
@@ -1525,7 +1524,7 @@ function drawUI(){
     text("ЯРИК ПРОТИВ ВЕЛИКАНА", cx, CH*0.256, 16, P.orange, "center");
 
     // строка игрока — по ней же меняют имя
-    const nickLine = (player || "БЕЗ ИМЕНИ").toUpperCase() + "   ✎";
+    const nickLine = (player || "без имени") + "   ✎";
     const nickY = CH*0.312;
     u.font = "bold " + Math.round(15*uiK) + "px ui-monospace, Consolas, 'Courier New', monospace";
     const nickW = u.measureText(nickLine).width;
@@ -1566,7 +1565,7 @@ function drawUI(){
       // рекорд подписан именем — видно, чей результат предстоит побить
       const mark = bs.score > 0
         ? (bs.name && bs.name.toUpperCase() !== (player||"").toUpperCase()
-             ? bs.name.toUpperCase() + " " + bs.score
+             ? bs.name + " " + bs.score          // сравниваем без учёта регистра, показываем как есть
              : String(bs.score))
         : "—";
       text(mark, x0+wRow-16, baseline, 15, on ? P.cyan : "#6d5580", "right",
@@ -1626,7 +1625,7 @@ function drawUI(){
         const bl = y + rowH*0.68;
         const col = i === 0 ? P.orange : (mine ? P.cyan : "#c7aede");
         text(String(i+1).padStart(2," "), x0+14, bl, 15, i===0?P.orange:"#6d5580", "left");
-        text(String(r.name || "—").toUpperCase(), x0+58, bl, 16, col, "left");
+        text(String(r.name || "—"), x0+58, bl, 16, col, "left");
         text(String(r.score), x0+wRow-14, bl, 16, col, "right");
       }
     }
@@ -1652,7 +1651,7 @@ function drawUI(){
     text(narrow ? runTime.toFixed(1) + " с · ВОЛНА " + wave + " · " + curDiff().name
                : "ПРОДЕРЖАЛСЯ  " + runTime.toFixed(1) + " с  ·  ВОЛНА " + wave + "  ·  " + curDiff().name,
          cx, CH*0.565, narrow?12:16, "#b79ccb", "center", "normal");
-    text(newRecord ? (player ? "НОВЫЙ РЕКОРД, " + player.toUpperCase() + "!" : "НОВЫЙ РЕКОРД!")
+    text(newRecord ? (player ? "НОВЫЙ РЕКОРД, " + player + "!" : "НОВЫЙ РЕКОРД!")
                    : "РЕКОРД  " + bests[curDiff().id].score,
          cx, CH*0.635, 20, newRecord ? P.orange : "#8a6fa0", "center");
     // место в общем зачёте — главное, что хочется увидеть после боя
