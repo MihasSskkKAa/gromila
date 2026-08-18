@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="description" content="Громила — ретро-аркада: мальчик Ярик уворачивается от камней великана.">
 <title>Громила</title>
 <style>
@@ -18,7 +18,9 @@
   --dim:#9a7fae;
   --mono:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;
 }
-*{box-sizing:border-box;}
+/* touch-action не наследуется, поэтому задаём его каждому элементу —
+   иначе двойной тап мимо экрана и кнопок всё равно приближает страницу */
+*{box-sizing:border-box;touch-action:manipulation;}
 html{height:100%;}
 body{
   margin:0;
@@ -2642,6 +2644,18 @@ function relayout(){
   fitScreen();
   computeUiScale();
 }
+
+/* Safari на iPhone игнорирует user-scalable, поэтому глушим масштабирование
+   вручную: щипок, двойной тап и системный dblclick. */
+["gesturestart","gesturechange","gestureend"].forEach(ev =>
+  document.addEventListener(ev, e => e.preventDefault(), {passive:false}));
+document.addEventListener("dblclick", e => e.preventDefault(), {passive:false});
+let lastTap = 0;
+document.addEventListener("touchend", e => {
+  const now = Date.now();
+  if(now - lastTap < 320) e.preventDefault();     // второй тап подряд браузеру не отдаём
+  lastTap = now;
+}, {passive:false});
 
 relayout();
 updateMarquee();
