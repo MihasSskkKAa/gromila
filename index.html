@@ -920,6 +920,7 @@ const curDiff = () => DIFFS[diffIndex];
 const keys = Object.create(null);
 const pressed = { left:false, right:false };
 let touchX = null;            // куда ведёт палец; null — экран не тронут
+let lastPress = null;         // какую сторону нажали последней: "left" | "right"
 let paused = false;           // свернули вкладку посреди боя
 
 /* экран общей таблицы: что показываем и в каком она состоянии */
@@ -1799,8 +1800,11 @@ function update(dt){
   const right = keys["ArrowRight"] || keys["KeyD"] || pressed.right;
   const speed = 152;
   let target = 0;
-  if(left && !right)  target = -speed;
-  if(right && !left)  target =  speed;
+  // зажаты обе — слушаем ту, что нажали последней: так удобнее менять
+  // направление на бегу, не отпуская первый палец
+  if(left && right)      target = (lastPress === "left" ? -speed : speed);
+  else if(left)          target = -speed;
+  else if(right)         target =  speed;
 
   // палец на экране перебивает кнопки: бежим к точке касания и тормозим на месте
   if(touchX !== null && !left && !right){
@@ -2519,6 +2523,10 @@ window.addEventListener("keydown", e => {
   }
   if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Space"].includes(e.code)) e.preventDefault();
   if(e.repeat && (e.code === "ArrowUp" || e.code === "ArrowDown")) return;
+  if(!e.repeat){
+    if(e.code === "ArrowLeft"  || e.code === "KeyA") lastPress = "left";
+    if(e.code === "ArrowRight" || e.code === "KeyD") lastPress = "right";
+  }
   keys[e.code] = true;
   if(state === "menu"){
     if(e.code === "ArrowUp"   || e.code === "KeyW") moveMenu(-1);
@@ -2596,11 +2604,24 @@ screenEl.addEventListener("pointermove", e => { if(touchX !== null) pointerAt(e)
 ["pointerup","pointercancel","pointerleave"].forEach(ev =>
   screenEl.addEventListener(ev, () => { touchX = null; pressed.left = pressed.right = false; }));
 
+/* Каждая кнопка забирает свой палец себе, поэтому нажимать можно обе
+   разом, а соскользнувший с кнопки палец не считается отпущенным. */
 function hold(btn, side){
-  const on  = e => { e.preventDefault(); pressed[side] = true;  Audio5.unlock(); };
-  const off = e => { e.preventDefault(); pressed[side] = false; };
+  const other = side === "left" ? "right" : "left";
+  const on = e => {
+    e.preventDefault();
+    pressed[side] = true;
+    lastPress = side;
+    Audio5.unlock();
+    if(btn.setPointerCapture) { try { btn.setPointerCapture(e.pointerId); } catch(err){} }
+  };
+  const off = e => {
+    e.preventDefault();
+    pressed[side] = false;
+    if(lastPress === side) lastPress = pressed[other] ? other : null;
+  };
   btn.addEventListener("pointerdown", on);
-  ["pointerup","pointercancel","pointerleave"].forEach(ev => btn.addEventListener(ev, off));
+  ["pointerup","pointercancel","lostpointercapture"].forEach(ev => btn.addEventListener(ev, off));
 }
 hold(document.getElementById("btnLeft"), "left");
 hold(document.getElementById("btnRight"), "right");
