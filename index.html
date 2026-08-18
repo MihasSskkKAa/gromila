@@ -441,23 +441,25 @@ const curBoss = () => BOSSES[bossIndex];
    ЗВУК — чиптюн 80-х на Web Audio
    ============================================================ */
 const Audio5 = (function(){
-  let ac=null, master=null, musicBus=null, leadBus=null, sfxBus=null, noiseBuf=null;
+  let ac=null, master=null, musicBus=null, duckBus=null, leadBus=null, sfxBus=null, noiseBuf=null;
   let enabled=false, running=false, timer=null;
-  let step=0, nextTime=0, bpm=142, intensity=0;
+  let step=0, nextTime=0, bpm=126, intensity=0;
 
-  // Am - F - C - G, арпеджио + пульс-лид
+  /* Am7 - Fmaj7 - C - G: тот же ход, но с добавленными ступенями —
+     звучит мягче и современнее голого трезвучия. */
   const PROG = [
-    {root:45, chord:[57,60,64]},
-    {root:41, chord:[53,57,60]},
-    {root:48, chord:[60,64,67]},
-    {root:43, chord:[55,59,62]}
+    {root:45, chord:[57,60,64,67]},
+    {root:41, chord:[53,57,60,64]},
+    {root:48, chord:[55,60,64,67]},
+    {root:43, chord:[50,55,59,62]}
   ];
   const R = -1;
+  // лид дышит длинными нотами поверх бита, а не сыплет восьмыми
   const LEAD = [
-    [69,R,72,R,76,R,72,R, 71,R,R,R,69,R,R,R],
-    [72,R,74,R,77,R,74,R, 72,R,R,R,69,R,R,R],
-    [76,R,79,R,76,R,72,R, 74,R,R,R,71,R,R,R],
-    [67,R,71,R,74,R,79,R, 78,R,R,R,R,R,76,R]
+    [76,R,R,R,R,R,74,R, 72,R,R,R,R,R,R,R],
+    [72,R,R,R,74,R,R,R, 76,R,R,R,R,R,72,R],
+    [79,R,R,R,R,R,76,R, 74,R,R,R,R,R,R,R],
+    [74,R,R,R,72,R,R,R, 71,R,R,R,R,R,R,R]
   ];
 
   const mtof = m => 440 * Math.pow(2, (m-69)/12);
@@ -477,12 +479,19 @@ const Audio5 = (function(){
     musicBus = ac.createGain(); musicBus.gain.value = 0.55; musicBus.connect(master);
     sfxBus   = ac.createGain(); sfxBus.gain.value   = 0.85; sfxBus.connect(master);
 
-    // эхо на лид-канале — фирменный звук аркад 80-х
-    leadBus = ac.createGain(); leadBus.gain.value = 0.5; leadBus.connect(musicBus);
-    const dly = ac.createDelay(0.5); dly.delayTime.value = 0.1690;
-    const fb  = ac.createGain(); fb.gain.value = 0.3;
-    const dampen = ac.createBiquadFilter(); dampen.type="lowpass"; dampen.frequency.value=2600;
-    leadBus.connect(dly); dly.connect(dampen); dampen.connect(fb); fb.connect(dly); dampen.connect(musicBus);
+    /* Сайдчейн: всё, кроме бочки, идёт через duckBus, который на каждом
+       ударе приседает и отпускает. Это то самое «дыхание» танцевальной
+       музыки, из-за которого трек звучит современно, а не как чиптюн. */
+    duckBus = ac.createGain(); duckBus.gain.value = 1; duckBus.connect(musicBus);
+
+    // лид и арпеджио — через задержку с затуханием, дают воздух
+    leadBus = ac.createGain(); leadBus.gain.value = 0.55; leadBus.connect(duckBus);
+    const dly = ac.createDelay(0.7); dly.delayTime.value = 0.24;
+    const fb  = ac.createGain(); fb.gain.value = 0.34;
+    const dampen = ac.createBiquadFilter(); dampen.type="lowpass"; dampen.frequency.value=3200;
+    const wet = ac.createGain(); wet.gain.value = 0.5;
+    leadBus.connect(dly); dly.connect(dampen); dampen.connect(fb); fb.connect(dly);
+    dampen.connect(wet); wet.connect(duckBus);
 
     const n = ac.sampleRate * 0.6;
     noiseBuf = ac.createBuffer(1, n, ac.sampleRate);
@@ -516,34 +525,89 @@ const Audio5 = (function(){
     src.start(t); src.stop(t+dur+0.02);
   }
 
+  /* Расстроенный «супер-соу»: три пилы чуть врозь по высоте — от этого
+     звук становится широким и живым вместо плоского писка. */
+  function superSaw(freq, t, dur, vol, dest, cutFrom, cutTo, q){
+    const f = ac.createBiquadFilter();
+    f.type = "lowpass";
+    f.frequency.setValueAtTime(cutFrom, t);
+    f.frequency.exponentialRampToValueAtTime(Math.max(120, cutTo), t + dur*0.9);
+    f.Q.value = q === undefined ? 6 : q;
+    const gn = ac.createGain();
+    gn.gain.setValueAtTime(0.0001, t);
+    gn.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t + 0.012);
+    gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    f.connect(gn); gn.connect(dest || duckBus);
+    [-9, 0, 9].forEach(cents => {
+      const o = ac.createOscillator();
+      o.type = "sawtooth";
+      o.frequency.value = freq;
+      o.detune.value = cents;
+      o.connect(f);
+      o.start(t); o.stop(t + dur + 0.03);
+    });
+  }
+
+  function kick(t){
+    const o = ac.createOscillator(), gn = ac.createGain();
+    o.type = "sine";
+    o.frequency.setValueAtTime(180, t);
+    o.frequency.exponentialRampToValueAtTime(44, t + 0.13);
+    gn.gain.setValueAtTime(0.9, t);
+    gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.30);
+    o.connect(gn); gn.connect(musicBus);          // бочка мимо сайдчейна
+    o.start(t); o.stop(t + 0.32);
+    noise(t, 0.02, 0.18, 1800, 0.8, 900, musicBus);   // щелчок атаки
+
+    // и она же «пригибает» всё остальное
+    duckBus.gain.cancelScheduledValues(t);
+    duckBus.gain.setValueAtTime(1, t);
+    duckBus.gain.linearRampToValueAtTime(0.38, t + 0.012);
+    duckBus.gain.linearRampToValueAtTime(1, t + 0.19);
+  }
+
+  function clap(t){
+    [0, 0.011, 0.023].forEach((d, i) =>
+      noise(t + d, 0.05, 0.16 - i*0.03, 1700, 1.4, 1200, duckBus));
+    noise(t + 0.03, 0.18, 0.10, 1300, 0.9, 700, duckBus);
+  }
+
+  function hat(t, open, vol){
+    noise(t, open ? 0.16 : 0.035, vol, 9000, 1.6, open ? 7000 : 8000, duckBus);
+  }
+
   function playStep(i, t){
     const bar = Math.floor(i/16) % 4;
     const s = i % 16;
     const ch = PROG[bar];
     const hot = intensity;
+    const cut = 900 + hot*2600;                  // с волнами трек раскрывается
 
-    // бас — восьмые с прыжком на октаву
+    if(s % 4 === 0) kick(t);                     // ровная бочка в каждую долю
+    if(s === 4 || s === 12) clap(t);
+    if(s % 2 === 1) hat(t, false, 0.07 + hot*0.03);          // хэт на слабую долю
+    if(s === 14) hat(t, true, 0.06);
+    if(hot > 0.5 && s % 2 === 0) hat(t, false, 0.03);        // на скорости — шестнадцатые
+
+    // бас: короткий и упругий, между ударами бочки
     if(s % 2 === 0){
-      const oct = (s % 8 === 4) ? 12 : 0;
-      tone("sawtooth", mtof(ch.root + oct), t, 0.16, 0.20 + hot*0.05, musicBus);
-      tone("square",   mtof(ch.root + oct - 12), t, 0.14, 0.10, musicBus);
+      const oct = (s === 8) ? 12 : 0;
+      superSaw(mtof(ch.root + oct), t, 0.19, 0.26, duckBus, 260 + hot*260, 130, 9);
     }
-    // арпеджио шестнадцатыми
-    const arp = ch.chord[(s + Math.floor(s/4)) % 3] + 12;
-    tone("square", mtof(arp), t, 0.075, 0.055 + hot*0.02, musicBus);
+    // подложка: аккорд тянется весь такт
+    if(s === 0){
+      const beat = 60/bpm;
+      ch.chord.forEach(n =>
+        superSaw(mtof(n), t, beat*3.6, 0.045 + hot*0.015, duckBus, 700 + hot*900, 500, 2));
+    }
+    // арпеджио — только на восьмых, чтобы не тарахтело
+    if(s % 2 === 1){
+      const arp = ch.chord[(Math.floor(s/2) + bar) % ch.chord.length] + 12;
+      superSaw(mtof(arp), t, 0.11, 0.05 + hot*0.02, leadBus, 2200, 1400, 4);
+    }
     // лид
     const nte = LEAD[bar][s];
-    if(nte > 0) tone("square", mtof(nte + (hot>0.6?12:0)), t, 0.20, 0.10, leadBus);
-    // ударные
-    if(s===0 || s===8 || (s===11 && hot>0.35)){
-      tone("sine", 140, t, 0.16, 0.42, musicBus, 44);
-    }
-    if(s===4 || s===12){
-      noise(t, 0.13, 0.18, 1500, 0.8, 700, musicBus);
-    }
-    if(s % 2 === 0){
-      noise(t, 0.03, 0.05 + hot*0.03, 8000, 1.2, 6000, musicBus);
-    }
+    if(nte > 0) superSaw(mtof(nte + (hot > 0.65 ? 12 : 0)), t, 0.42, 0.085, leadBus, 3000, 1200, 3);
   }
 
   function tick(){
@@ -586,7 +650,7 @@ const Audio5 = (function(){
       if(timer) clearInterval(timer);
       timer = null;
     },
-    setIntensity(v){ intensity = Math.max(0, Math.min(1, v)); bpm = 142 + intensity*22; },
+    setIntensity(v){ intensity = Math.max(0, Math.min(1, v)); bpm = 126 + intensity*14; },
     duck(amount, secs){
       if(!ac) return;
       musicBus.gain.cancelScheduledValues(ac.currentTime);
