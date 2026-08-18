@@ -923,6 +923,72 @@ const keys = Object.create(null);
 const pressed = { left:false, right:false };
 let touchX = null;            // куда ведёт палец; null — экран не тронут
 let lastPress = null;         // какую сторону нажали последней: "left" | "right"
+
+/* Стены поля: время от времени сходятся, держатся и расходятся обратно.
+   idle → warn (3 с предупреждения) → closing (плавно сходятся)
+        → held (4 с в узком поле) → opening (плавно расходятся) → idle */
+const zone = {
+  phase: "idle", t: 0, next: rnd(18, 30),
+  l: 0, r: 0,            // где стены сейчас
+  fromL: 0, fromR: 0,    // откуда едут
+  toL: 0, toR: 0         // куда едут
+};
+const WARN_T = 3, CLOSE_T = 1.6, HOLD_T = 4, OPEN_T = 1.8;
+
+function zoneReset(){
+  zone.phase = "idle"; zone.t = 0; zone.next = rnd(18, 30);
+  zone.l = HERO_MIN_X - 12; zone.r = HERO_MAX_X + 12;
+}
+
+function zonePlan(){
+  const full = (HERO_MAX_X - HERO_MIN_X);
+  const width = full * rnd(0.44, 0.58);          // во столько раз ужимаем поле
+  const center = clamp(rnd(HERO_MIN_X + width/2, HERO_MAX_X - width/2),
+                       HERO_MIN_X + width/2, HERO_MAX_X - width/2);
+  zone.fromL = zone.l; zone.fromR = zone.r;
+  zone.toL = Math.round(center - width/2);
+  zone.toR = Math.round(center + width/2);
+  zone.phase = "warn"; zone.t = 0;
+  say("ЗОНА СУЖАЕТСЯ!", W/2, H*0.33, T.markHot, true);
+  Audio5.sfx("roar");
+}
+
+function zoneStep(dt){
+  if(state !== "play"){ if(zone.phase !== "idle") zoneReset(); return; }
+  zone.t += dt;
+  switch(zone.phase){
+    case "idle":
+      if(zone.t >= zone.next) zonePlan();
+      break;
+    case "warn":
+      if(zone.t >= WARN_T){ zone.phase = "closing"; zone.t = 0; }
+      break;
+    case "closing": {
+      const k = clamp(zone.t / CLOSE_T, 0, 1);
+      zone.l = lerp(zone.fromL, zone.toL, k);
+      zone.r = lerp(zone.fromR, zone.toR, k);
+      if(k >= 1){ zone.phase = "held"; zone.t = 0; }
+      break;
+    }
+    case "held":
+      if(zone.t >= HOLD_T){
+        zone.phase = "opening"; zone.t = 0;
+        zone.fromL = zone.l; zone.fromR = zone.r;
+      }
+      break;
+    case "opening": {
+      const k = clamp(zone.t / OPEN_T, 0, 1);
+      zone.l = lerp(zone.fromL, HERO_MIN_X - 12, k);
+      zone.r = lerp(zone.fromR, HERO_MAX_X + 12, k);
+      if(k >= 1){ zoneReset(); }
+      break;
+    }
+  }
+}
+
+/* Границы, внутри которых Ярик может бегать, а соперник — целиться */
+const zoneMinX = () => Math.max(HERO_MIN_X, Math.round(zone.l) + 10);
+const zoneMaxX = () => Math.min(HERO_MAX_X, Math.round(zone.r) - 10);
 let paused = false;           // свернули вкладку посреди боя
 
 /* экран общей таблицы: что показываем и в каком она состоянии */
@@ -1526,8 +1592,10 @@ function planThrow(){
      добежит: сначала мажет мимо, под конец ведёт точно по движению. */
   const chaos = clamp(0.80 - aimK*0.76, 0.04, 0.85);
   const lead  = lerp(rnd(0.15,0.55), rnd(0.80,1.10), aimK);
-  const predict = clamp(hero.x + hero.vx*flight*lead, 30, W-30);
-  const center  = clamp(predict*(1-chaos) + rnd(40, W-40)*chaos, 34, W-34);
+  // когда стены сошлись, бить за них бессмысленно — Ярика там нет
+  const lo = zoneMinX() - 6, hi = zoneMaxX() + 6;
+  const predict = clamp(hero.x + hero.vx*flight*lead, lo, hi);
+  const center  = clamp(predict*(1-chaos) + rnd(lo, hi)*chaos, lo, hi);
 
   /* Пристрелявшись, бьёт в вилку: один в Ярика, два по бокам — стоять негде.
      У края поля вилку не ставим: там Ярику некуда отбежать, и это была бы
@@ -1759,7 +1827,7 @@ function reset(){
   aimNow = 0; aimAnnounced = 0;
   hero.x = W/2; hero.vx = 0; hero.lives = curDiff().lives; hero.inv = 0; hero.alive = true; hero.walk = 0; hero.shield = 0;
   boss.x = W/2; boss.state = "wait"; boss.t = 0; boss.wait = 0.9; boss.pending = null; boss.roar = 0;
-  rocks = []; parts = []; craters = []; texts = []; hearts = []; hazards = [];
+  rocks = []; parts = []; craters = []; texts = []; hearts = []; hazards = []; zoneReset();
   shake = 0; flash = 0; rageFlash = 0;
 }
 
@@ -1819,8 +1887,9 @@ function update(dt){
 
   hero.vx += (target - hero.vx) * Math.min(1, dt*16);
   if(Math.abs(hero.vx) < 1) hero.vx = 0;
-  hero.x = clamp(hero.x + hero.vx*dt, HERO_MIN_X, HERO_MAX_X);
-  if(hero.x <= HERO_MIN_X || hero.x >= HERO_MAX_X) hero.vx *= 0.2;
+  const loX = zoneMinX(), hiX = zoneMaxX();      // стены зоны, если они сошлись
+  hero.x = clamp(hero.x + hero.vx*dt, loX, hiX);
+  if(hero.x <= loX || hero.x >= hiX) hero.vx *= 0.2;
   if(target !== 0) hero.dir = target > 0 ? 1 : -1;
   hero.walk += Math.abs(hero.vx)/speed * dt;
   if(hero.inv > 0) hero.inv -= dt;
@@ -1944,6 +2013,7 @@ function update(dt){
     if(hz.life <= 0) hazards.splice(i,1);
   }
   freeTheLane();
+  zoneStep(dt);
   for(let i=texts.length-1;i>=0;i--){ texts[i].life -= dt; texts[i].y -= dt*14; if(texts[i].life<=0) texts.splice(i,1); }
 
   shake = Math.max(0, shake - dt*26);
@@ -1974,6 +2044,35 @@ function render(){
       g.globalAlpha = a;
       drawShot(c.x + Math.sin(c.tilt)*6, GROUND_Y - 7, 6, 1,
                {dir: -Math.PI/2 + c.tilt});
+      g.globalAlpha = 1;
+    }
+  }
+
+  // стены сужающейся зоны — от линии горизонта до низа экрана
+  if(zone.phase !== "idle"){
+    const top = HORIZON_Y;
+    if(zone.phase === "warn"){
+      // за три секунды до схождения пунктиром показываем, где встанут стены
+      g.globalAlpha = 0.4 + Math.abs(Math.sin(time*7))*0.55;
+      for(const x of [zone.toL, zone.toR])
+        for(let y = top; y < H; y += 7) px(x-1, y, 3, 4, T.markHot);
+      g.globalAlpha = 1;
+    } else {
+      g.globalAlpha = 0.62;                       // снаружи гасим свет
+      px(0, top, Math.max(0, zone.l), H-top, T.chasm);
+      px(zone.r, top, Math.max(0, W-zone.r), H-top, T.chasm);
+      // барьер: широкое свечение, яркая кромка и бегущие штрихи по ней
+      g.globalAlpha = 0.3;
+      px(zone.l-9, top, 8, H-top, T.markHot);
+      px(zone.r+1, top, 8, H-top, T.markHot);
+      g.globalAlpha = 0.85 + Math.sin(time*9)*0.15;
+      px(zone.l-3, top, 4, H-top, T.markHot);
+      px(zone.r, top, 4, H-top, T.markHot);
+      g.globalAlpha = 0.9;
+      for(let y = top + ((time*26)%10); y < H; y += 10){
+        px(zone.l-3, y, 4, 3, "#ffe6ef");
+        px(zone.r, y, 4, 3, "#ffe6ef");
+      }
       g.globalAlpha = 1;
     }
   }
@@ -2681,6 +2780,7 @@ document.addEventListener("touchend", e => {
 }, {passive:false});
 
 relayout();
+zoneReset();
 updateMarquee();
 window.addEventListener("resize", relayout);
 window.addEventListener("orientationchange", () => setTimeout(relayout, 250));
