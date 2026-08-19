@@ -917,6 +917,7 @@ const SHOP = [
   {id:"life",   name:"ДОП. ЖИЗНЬ", price:150, hint:"Сразу добавляет одно сердце."},
   {id:"x2",     name:"×2 ОЧКИ",    price:200, hint:"Двойной счёт на 5 секунд."}
 ];
+const MAX_ITEM = 3;                  // больше трёх одинаковых в запас не влезает
 let coins = 0;
 const inv = {shield:0, life:0, x2:0};
 
@@ -926,7 +927,8 @@ function loadWallet(){
     const raw = localStorage.getItem("gromila.inv");
     if(raw){
       const parsed = JSON.parse(raw);
-      for(const it of SHOP) inv[it.id] = Math.max(0, parseInt(parsed[it.id], 10) || 0);
+      for(const it of SHOP)
+        inv[it.id] = clamp(parseInt(parsed[it.id], 10) || 0, 0, MAX_ITEM);
     }
   } catch(e){}
 }
@@ -2574,7 +2576,8 @@ function drawUI(){
       const it = SHOP[i];
       const y = CH*0.25 + i*hRow;
       const on = i === shopIndex;
-      const canBuy = coins >= it.price;
+      const full = inv[it.id] >= MAX_ITEM;
+      const canBuy = !full && coins >= it.price;
       shopRows.push({x:x0, y, w:wRow, h:hRow-6, i});
       if(on){
         u.fillStyle = "rgba(55,230,212,.12)";
@@ -2587,11 +2590,16 @@ function drawUI(){
       text(it.hint, x0+20, y + hRow*0.72, 11, "#9d84b4", "left", "normal");
       text(it.price + " ⬤", x0+wRow-16, y + hRow*0.42, 16,
            canBuy ? P.orange : "#6d5580", "right");
-      text("в запасе " + inv[it.id], x0+wRow-16, y + hRow*0.72, 11, "#8a6fa0", "right", "normal");
+      text("в запасе " + inv[it.id] + " / " + MAX_ITEM, x0+wRow-16, y + hRow*0.72, 11,
+           full ? P.orange : "#8a6fa0", "right", "normal");
     }
 
-    text(coins >= SHOP[shopIndex].price ? "хватает — можно брать" : "монет не хватает",
-         cx, CH*0.83, 13, coins >= SHOP[shopIndex].price ? P.cyan : P.magenta, "center", "normal");
+    const sel = SHOP[shopIndex];
+    const selFull = inv[sel.id] >= MAX_ITEM;
+    text(selFull ? "запас полон — больше трёх не унести"
+                 : (coins >= sel.price ? "хватает — можно брать" : "монет не хватает"),
+         cx, CH*0.83, 13,
+         selFull ? P.orange : (coins >= sel.price ? P.cyan : P.magenta), "center", "normal");
     text(coarse ? "коснись товара — купить   ·   мимо — назад"
                 : "↑ ↓ — выбор   ·   ПРОБЕЛ — купить   ·   ESC — назад",
          cx, CH-16, 12, "#6d5580", "center", "normal");
@@ -2805,7 +2813,7 @@ function openShop(){
 }
 function buyItem(){
   const it = SHOP[shopIndex];
-  if(coins < it.price){
+  if(inv[it.id] >= MAX_ITEM || coins < it.price){   // запас полон или монет мало
     Audio5.sfx("hurt");
     return;
   }
