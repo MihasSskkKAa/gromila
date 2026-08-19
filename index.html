@@ -2349,30 +2349,45 @@ function drawUI(){
     if(dodgeStreak > 2) text("СЕРИЯ ×" + dodgeStreak, CW-20, row2 + (narrow?Math.round(18*uiK):6), narrow?12:14, P.orange, "right");
     if(x2Timer > 0) text("×2  " + x2Timer.toFixed(1) + "с", CW-20, row1 - Math.round(24*uiK), 15, P.orange, "right");
 
-    // ячейки купленного: нажимаются касанием или клавишами 1..3
-    const cw = Math.round(60*uiK), chh = Math.round(40*uiK), gap = Math.round(8*uiK);
-    const totalW = SHOP.length*cw + (SHOP.length-1)*gap;
-    const bx0 = CW/2 - totalW/2, by0 = CH - chh - Math.round(10*uiK);
+    /* Ячейки купленного стоят под шапкой, а не внизу: там они не заслоняют
+       Ярика, но остаются в удобной для пальца зоне. */
+    const cw = Math.round(82*uiK), chh = Math.round(58*uiK), gap = Math.round(10*uiK);
+    const bx0 = 20, by0 = row2 + Math.round(14*uiK);
     slotRects.length = 0;
     for(let i=0;i<SHOP.length;i++){
       const it = SHOP[i], have = inv[it.id];
       const x = bx0 + i*(cw+gap);
+      const tint = it.id === "shield" ? P.cyan : it.id === "life" ? P.magenta : P.orange;
       slotRects.push({x, y:by0, w:cw, h:chh, id:it.id});
-      u.fillStyle = have ? "rgba(55,230,212,.14)" : "rgba(246,231,193,.05)";
+
+      u.fillStyle = "rgba(10,5,18,.86)";           // плотная подложка — читается на любом фоне
       u.fillRect(x, by0, cw, chh);
-      u.fillStyle = have ? "rgba(55,230,212,.55)" : "rgba(246,231,193,.14)";
-      u.fillRect(x, by0, cw, 2);
-      const s = Math.max(2, Math.round(2.2*uiK));
+      if(have){                                     // есть запас — ячейка светится
+        u.fillStyle = "rgba(255,255,255,.05)";
+        u.fillRect(x+2, by0+2, cw-4, chh-4);
+      }
+      u.lineWidth = have ? 3 : 2;
+      u.strokeStyle = have ? tint : "rgba(246,231,193,.18)";
+      u.strokeRect(x + u.lineWidth/2, by0 + u.lineWidth/2, cw - u.lineWidth, chh - u.lineWidth);
+
+      const s = Math.max(3, Math.round(3.4*uiK));
+      const iconY = by0 + Math.round(chh*0.16);
       if(it.id === "shield")
-        paintSprite(u, SHIELD, x + cw/2 - s*4, by0 + chh*0.18, s,
-                    have ? P.cyan : "rgba(246,231,193,.2)", null, null);
+        paintSprite(u, SHIELD, x + cw/2 - s*4, iconY, s,
+                    have ? P.cyan : "rgba(246,231,193,.22)", have ? "#0f5f58" : null, have ? "#c7fff8" : null);
       else if(it.id === "life")
-        paintSprite(u, HEART, x + cw/2 - s*4, by0 + chh*0.18, s,
-                    have ? P.magenta : "rgba(246,231,193,.2)", null, null);
+        paintSprite(u, HEART, x + cw/2 - s*4, iconY, s,
+                    have ? P.magenta : "rgba(246,231,193,.22)", have ? "#7a1030" : null, have ? "#ff9ec2" : null);
       else
-        text("×2", x + cw/2, by0 + chh*0.55, 16, have ? P.orange : "rgba(246,231,193,.2)", "center");
-      text(String(have), x + cw - 6, by0 + chh - 5, 12, have ? P.bone : "#6d5580", "right");
-      text(String(i+1), x + 6, by0 + chh - 5, 10, "#6d5580", "left", "normal");
+        text("×2", x + cw/2, iconY + s*5.6, 26, have ? P.orange : "rgba(246,231,193,.22)", "center");
+
+      // номер клавиши и остаток — крупно, каждый в своём углу
+      text(String(i+1), x + 7, by0 + Math.round(16*uiK), 13, "#8a6fa0", "left");
+      u.fillStyle = have ? tint : "rgba(246,231,193,.10)";
+      u.fillRect(x + cw - Math.round(22*uiK), by0 + chh - Math.round(20*uiK),
+                 Math.round(20*uiK), Math.round(18*uiK));
+      text(String(have), x + cw - Math.round(12*uiK), by0 + chh - Math.round(6*uiK),
+           14, have ? "#0a0512" : "#6d5580", "center");
     }
   }
 
