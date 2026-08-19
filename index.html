@@ -836,13 +836,13 @@ const lerp = (a,b,t) => a + (b-a)*t;
    он перестаёт швырять наугад и начинает целить в Ярика. */
 const DIFFS = [
   {id:"easy",  name:"ЛЕГКО",     hint:"Камни летят медленно. Четыре жизни.",
-   gap:1.35, flight:1.30, volley:0.45, boulder:0.45, lives:4, mult:0.7, ramp:0.7, aim:0.5},
+   gap:1.35, flight:1.30, volley:0.45, boulder:0.45, lives:4, mult:0.7, ramp:0.7, aim:0.5, coinEvery:5},
   {id:"normal",name:"НОРМАЛЬНО", hint:"Как в автоматах 86-го. Три жизни.",
-   gap:1.00, flight:1.00, volley:1.00, boulder:1.00, lives:3, mult:1.0, ramp:1.0, aim:1.0},
+   gap:1.00, flight:1.00, volley:1.00, boulder:1.00, lives:3, mult:1.0, ramp:1.0, aim:1.0, coinEvery:4},
   {id:"hard",  name:"СЛОЖНО",    hint:"Целится метко, бьёт в вилку. Две жизни.",
-   gap:0.72, flight:0.84, volley:1.45, boulder:1.45, lives:2, mult:1.6, ramp:1.35, aim:1.35},
+   gap:0.72, flight:0.84, volley:1.45, boulder:1.45, lives:2, mult:1.6, ramp:1.35, aim:1.35, coinEvery:3},
   {id:"koshmar",name:"КОШМАР",   hint:"Одна жизнь. Пристреляется за минуту.",
-   gap:0.54, flight:0.70, volley:1.90, boulder:1.85, lives:1, mult:2.4, ramp:1.8, aim:1.75}
+   gap:0.54, flight:0.70, volley:1.90, boulder:1.85, lives:1, mult:2.4, ramp:1.8, aim:1.75, coinEvery:2}
 ];
 
 let state = "menu";           // menu | play | over
@@ -906,6 +906,37 @@ for(const d of DIFFS){
 
 let player = "";
 try { player = (localStorage.getItem("gromila.name") || "").slice(0,12); } catch(e){}
+
+/* ============================================================
+   КОШЕЛЁК И ЛАВКА
+   Монеты капают за время, которое удалось продержаться: чем выше
+   сложность, тем чаще. Купленное лежит в запасе до следующего боя.
+   ============================================================ */
+const SHOP = [
+  {id:"shield", name:"ЩИТ",        price:100, hint:"Гасит один удар. Держится 5 секунд."},
+  {id:"life",   name:"ДОП. ЖИЗНЬ", price:150, hint:"Сразу добавляет одно сердце."},
+  {id:"x2",     name:"×2 ОЧКИ",    price:200, hint:"Двойной счёт на 5 секунд."}
+];
+let coins = 0;
+const inv = {shield:0, life:0, x2:0};
+
+function loadWallet(){
+  try { coins = parseInt(localStorage.getItem("gromila.coins") || "0", 10) || 0; } catch(e){}
+  try {
+    const raw = localStorage.getItem("gromila.inv");
+    if(raw){
+      const parsed = JSON.parse(raw);
+      for(const it of SHOP) inv[it.id] = Math.max(0, parseInt(parsed[it.id], 10) || 0);
+    }
+  } catch(e){}
+}
+function saveWallet(){
+  try {
+    localStorage.setItem("gromila.coins", String(coins));
+    localStorage.setItem("gromila.inv", JSON.stringify(inv));
+  } catch(e){}
+}
+loadWallet();
 try {
   const saved = localStorage.getItem("gromila.diff");
   const i = DIFFS.findIndex(d => d.id === saved);
@@ -1708,6 +1739,29 @@ function freeTheLane(){
   hazards.splice(hazards.indexOf(victim), 1);
 }
 
+/* Пустить в ход купленное — клавишами 1..3 или касанием ячеек внизу экрана */
+function useItem(id){
+  if(state !== "play" || paused || !inv[id]) return;
+  if(id === "shield"){
+    hero.shield = 5;
+    Audio5.sfx("shield");
+    say("ЩИТ!", hero.x, GROUND_Y-52, P.cyan, true);
+    burst(hero.x, GROUND_Y-14, 16, 80, [P.cyan, P.bone, "#c7fff8"], -1);
+  } else if(id === "life"){
+    hero.lives = Math.min(6, hero.lives + 1);
+    Audio5.sfx("heart");
+    say("+1 ЖИЗНЬ", hero.x, GROUND_Y-52, P.magenta, true);
+    burst(hero.x, GROUND_Y-14, 14, 70, [P.magenta, P.bone], -1);
+  } else if(id === "x2"){
+    x2Timer = 5;
+    Audio5.sfx("shield");
+    say("×2 ОЧКИ!", hero.x, GROUND_Y-52, P.orange, true);
+    burst(hero.x, GROUND_Y-14, 18, 90, [P.orange, P.bone], -1);
+  }
+  inv[id]--;
+  saveWallet();
+}
+
 /* Урон Ярику — от прилетевшего снаряда или от того, что лежит на земле */
 function hurtHero(){
   // щит принимает удар на себя и на этом заканчивается
@@ -1766,7 +1820,7 @@ function land(rk){
   } else if(!inZone && rk.threat){
     // засчитываем только настоящий уход: камень шёл в Ярика, а он успел выйти
     dodgeStreak++;
-    const bonus = Math.round((50 + Math.min(150, dodgeStreak*10)) * curDiff().mult);
+    const bonus = Math.round((50 + Math.min(150, dodgeStreak*10)) * curDiff().mult * (x2Timer > 0 ? 2 : 1));
     score += bonus;
     Audio5.sfx("dodge");
     say("+"+bonus, hero.x, GROUND_Y-42, P.cyan);
@@ -1786,6 +1840,8 @@ function spawnHeart(){
 }
 
 let newRecord = false;
+let earned = 0;               // монет заработано за последний бой
+let x2Timer = 0;              // сколько ещё секунд действует двойной счёт
 let sentState = "off";        // off | sending | sent | failed
 let rankState = "idle";       // idle | loading | ok | fail
 let rank = null;              // {place, total}
@@ -1797,6 +1853,10 @@ function gameOver(){
   Audio5.sfx("over");
   shake = 12;
   burst(hero.x, GROUND_Y-12, 30, 150, [P.shirt, P.hair, P.skin, P.magenta], 1);
+  // монеты за продержанное время: чем выше сложность, тем чаще капают
+  earned = Math.floor(runTime / curDiff().coinEvery);
+  if(earned > 0){ coins += earned; saveWallet(); }
+
   const id = curDiff().id;
   newRecord = Math.floor(score) > bests[id].score;
   if(newRecord){
@@ -1823,7 +1883,7 @@ function gameOver(){
 
 function reset(){
   runTime = 0; score = 0; wave = 1; dodgeStreak = 0; rageTimer = 0; heartTimer = 22;
-  newRecord = false; sentState = "off"; rankState = "idle"; rank = null;
+  newRecord = false; earned = 0; x2Timer = 0; sentState = "off"; rankState = "idle"; rank = null;
   aimNow = 0; aimAnnounced = 0;
   hero.x = W/2; hero.vx = 0; hero.lives = curDiff().lives; hero.inv = 0; hero.alive = true; hero.walk = 0; hero.shield = 0;
   boss.x = W/2; boss.state = "wait"; boss.t = 0; boss.wait = 0.9; boss.pending = null; boss.roar = 0;
@@ -1862,7 +1922,11 @@ function update(dt){
 
   if(state === "play"){
     runTime += dt;
-    score += dt * 10 * curDiff().mult;
+    if(x2Timer > 0){
+      x2Timer -= dt;
+      if(x2Timer <= 0){ x2Timer = 0; say("×2 закончился", hero.x, GROUND_Y-40, "#8a6fa0"); }
+    }
+    score += dt * 10 * curDiff().mult * (x2Timer > 0 ? 2 : 1);
   }
 
   // герой
@@ -2245,6 +2309,9 @@ const bossRect = {x:0, y:0, w:0, h:0};
 const boardBossRect = {x:0, y:0, w:0, h:0};
 const boardDiffRect = {x:0, y:0, w:0, h:0};
 const playRect = {x:0, y:0, w:0, h:0};
+const shopRect = {x:0, y:0, w:0, h:0};
+const slotRects = [];
+const shopRows = [];
 
 function drawUI(){
   u.clearRect(0,0,uiC.width,uiC.height);
@@ -2280,6 +2347,33 @@ function drawUI(){
       text("ВРЕМЯ " + runTime.toFixed(1) + "с", cx, row2, 13, "#a98cc0", "center");
     }
     if(dodgeStreak > 2) text("СЕРИЯ ×" + dodgeStreak, CW-20, row2 + (narrow?Math.round(18*uiK):6), narrow?12:14, P.orange, "right");
+    if(x2Timer > 0) text("×2  " + x2Timer.toFixed(1) + "с", CW-20, row1 - Math.round(24*uiK), 15, P.orange, "right");
+
+    // ячейки купленного: нажимаются касанием или клавишами 1..3
+    const cw = Math.round(60*uiK), chh = Math.round(40*uiK), gap = Math.round(8*uiK);
+    const totalW = SHOP.length*cw + (SHOP.length-1)*gap;
+    const bx0 = CW/2 - totalW/2, by0 = CH - chh - Math.round(10*uiK);
+    slotRects.length = 0;
+    for(let i=0;i<SHOP.length;i++){
+      const it = SHOP[i], have = inv[it.id];
+      const x = bx0 + i*(cw+gap);
+      slotRects.push({x, y:by0, w:cw, h:chh, id:it.id});
+      u.fillStyle = have ? "rgba(55,230,212,.14)" : "rgba(246,231,193,.05)";
+      u.fillRect(x, by0, cw, chh);
+      u.fillStyle = have ? "rgba(55,230,212,.55)" : "rgba(246,231,193,.14)";
+      u.fillRect(x, by0, cw, 2);
+      const s = Math.max(2, Math.round(2.2*uiK));
+      if(it.id === "shield")
+        paintSprite(u, SHIELD, x + cw/2 - s*4, by0 + chh*0.18, s,
+                    have ? P.cyan : "rgba(246,231,193,.2)", null, null);
+      else if(it.id === "life")
+        paintSprite(u, HEART, x + cw/2 - s*4, by0 + chh*0.18, s,
+                    have ? P.magenta : "rgba(246,231,193,.2)", null, null);
+      else
+        text("×2", x + cw/2, by0 + chh*0.55, 16, have ? P.orange : "rgba(246,231,193,.2)", "center");
+      text(String(have), x + cw - 6, by0 + chh - 5, 12, have ? P.bone : "#6d5580", "right");
+      text(String(i+1), x + 6, by0 + chh - 5, 10, "#6d5580", "left", "normal");
+    }
   }
 
   if(state === "menu"){
@@ -2358,6 +2452,16 @@ function drawUI(){
     }
 
     // вход в общую таблицу — полноценная кнопка, а не подпись
+    // вход в лавку — с балансом прямо в строке
+    const shopLine = "ЛАВКА ▸   " + coins + " ⬤";
+    u.font = "bold " + Math.round(15*uiK) + "px ui-monospace, Consolas, 'Courier New', monospace";
+    const sw = Math.min(CW - 44, u.measureText(shopLine).width + 70*uiK);
+    shopRect.x = cx - sw/2;           shopRect.y = yHint - Math.round(86*uiK);
+    shopRect.w = sw;                  shopRect.h = Math.round(26*uiK);
+    u.fillStyle = "rgba(255,139,61,.12)";
+    u.fillRect(shopRect.x, shopRect.y, shopRect.w, shopRect.h);
+    text(shopLine, cx, shopRect.y + shopRect.h*0.72, 15, P.orange, "center");
+
     const boardLine = "ТАБЛИЦА РЕКОРДОВ ▸";
     u.font = "bold " + Math.round(17*uiK) + "px ui-monospace, Consolas, 'Courier New', monospace";
     const bw = Math.min(CW - 44, u.measureText(boardLine).width + 70*uiK);
@@ -2436,6 +2540,44 @@ function drawUI(){
          cx, CH-16, 12, "#6d5580", "center", "normal");
   }
 
+  if(state === "shop"){
+    u.fillStyle = "rgba(10,5,18,.42)";
+    u.fillRect(0,0,CW,CH);
+    scrim(CH*0.06, CH*0.97, 0.86);
+    chromaText("ЛАВКА", cx, CH*0.14, 44);
+    text("МОНЕТ: " + coins, cx, CH*0.205, 20, P.orange, "center");
+
+    shopRows.length = 0;
+    const wRow = Math.min(CW - 50, 470*uiK);
+    const x0 = cx - wRow/2;
+    const hRow = Math.min(64*uiK, (CH*0.76 - CH*0.25)/SHOP.length);
+    for(let i=0;i<SHOP.length;i++){
+      const it = SHOP[i];
+      const y = CH*0.25 + i*hRow;
+      const on = i === shopIndex;
+      const canBuy = coins >= it.price;
+      shopRows.push({x:x0, y, w:wRow, h:hRow-6, i});
+      if(on){
+        u.fillStyle = "rgba(55,230,212,.12)";
+        u.fillRect(x0, y, wRow, hRow-6);
+        u.fillStyle = P.cyan;
+        u.fillRect(x0, y, 4, hRow-6);
+      }
+      text((on ? "▶ " : "  ") + it.name, x0+20, y + hRow*0.42, 19,
+           on ? P.bone : "#8f74a6", "left");
+      text(it.hint, x0+20, y + hRow*0.72, 11, "#9d84b4", "left", "normal");
+      text(it.price + " ⬤", x0+wRow-16, y + hRow*0.42, 16,
+           canBuy ? P.orange : "#6d5580", "right");
+      text("в запасе " + inv[it.id], x0+wRow-16, y + hRow*0.72, 11, "#8a6fa0", "right", "normal");
+    }
+
+    text(coins >= SHOP[shopIndex].price ? "хватает — можно брать" : "монет не хватает",
+         cx, CH*0.83, 13, coins >= SHOP[shopIndex].price ? P.cyan : P.magenta, "center", "normal");
+    text(coarse ? "коснись товара — купить   ·   мимо — назад"
+                : "↑ ↓ — выбор   ·   ПРОБЕЛ — купить   ·   ESC — назад",
+         cx, CH-16, 12, "#6d5580", "center", "normal");
+  }
+
   if(paused){
     u.fillStyle = "rgba(10,5,18,.72)";
     u.fillRect(0,0,CW,CH);
@@ -2455,7 +2597,9 @@ function drawUI(){
          cx, CH*0.565, narrow?12:16, "#b79ccb", "center", "normal");
     text(newRecord ? (player ? "НОВЫЙ РЕКОРД, " + player + "!" : "НОВЫЙ РЕКОРД!")
                    : "РЕКОРД  " + bests[curDiff().id].score,
-         cx, CH*0.635, 20, newRecord ? P.orange : "#8a6fa0", "center");
+         cx, CH*0.615, 20, newRecord ? P.orange : "#8a6fa0", "center");
+    text(earned > 0 ? "+" + earned + " ⬤   ВСЕГО " + coins : "монет не заработал",
+         cx, CH*0.663, 15, earned > 0 ? P.orange : "#6d5580", "center");
     // место в общем зачёте — главное, что хочется увидеть после боя
     if(rankState === "ok" && rank && rank.place){
       const first = rank.place === 1;
@@ -2600,6 +2744,24 @@ function shiftBoss(step){
   Audio5.sfx(curBoss().sfx.throw);
 }
 
+let shopIndex = 0;
+function openShop(){
+  state = "shop";
+  shopIndex = 0;
+  Audio5.sfx("dodge");
+}
+function buyItem(){
+  const it = SHOP[shopIndex];
+  if(coins < it.price){
+    Audio5.sfx("hurt");
+    return;
+  }
+  coins -= it.price;
+  inv[it.id]++;
+  saveWallet();
+  Audio5.sfx("shield");
+}
+
 function openBoard(){
   state = "board";
   board.diff = menuIndex;
@@ -2635,6 +2797,13 @@ window.addEventListener("keydown", e => {
     if(e.code === "ArrowLeft"  || e.code === "KeyA") shiftBoss(-1);
     if(e.code === "ArrowRight" || e.code === "KeyD") shiftBoss(1);
     if(e.code === "KeyT") openBoard();
+    if(e.code === "KeyB") openShop();
+  } else if(state === "shop"){
+    if(e.code === "ArrowUp"   || e.code === "KeyW") { shopIndex = (shopIndex+SHOP.length-1)%SHOP.length; Audio5.sfx("dodge"); }
+    if(e.code === "ArrowDown" || e.code === "KeyS") { shopIndex = (shopIndex+1)%SHOP.length; Audio5.sfx("dodge"); }
+    if(e.code === "Space" || e.code === "Enter") buyItem();
+    if(e.code === "Escape") toMenu();
+    return;
   } else if(state === "board"){
     if(e.code === "ArrowLeft")  shiftBoard(-1);
     if(e.code === "ArrowRight") shiftBoard(1);
@@ -2647,6 +2816,12 @@ window.addEventListener("keydown", e => {
   if(e.code === "Escape" && state !== "menu") toMenu();
   if(e.code === "KeyM") setSound(!Audio5.isEnabled(), true);
   if(e.code === "KeyN" && state === "menu") openNameGate();
+  // купленное пускается в ход прямо в бою
+  if(state === "play"){
+    if(e.code === "Digit1" || e.code === "Numpad1") useItem("shield");
+    if(e.code === "Digit2" || e.code === "Numpad2") useItem("life");
+    if(e.code === "Digit3" || e.code === "Numpad3") useItem("x2");
+  }
 });
 window.addEventListener("keyup", e => { keys[e.code] = false; });
 window.addEventListener("blur", () => { for(const k in keys) keys[k] = false; pressed.left = pressed.right = false; });
@@ -2660,6 +2835,26 @@ screenEl.addEventListener("pointerdown", e => {
   if(nameOpen) return;
   screenEl.setPointerCapture && screenEl.setPointerCapture(e.pointerId);
   if(paused){ resume(); return; }
+  {
+    // ячейки предметов работают в бою, поэтому проверяем их раньше прочего
+    const r0 = screenEl.getBoundingClientRect();
+    const ux0 = (e.clientX - r0.left) / r0.width  * uiC.width;
+    const uy0 = (e.clientY - r0.top)  / r0.height * uiC.height;
+    if(state === "play"){
+      const slot = slotRects.find(m => ux0 >= m.x && ux0 <= m.x+m.w && uy0 >= m.y && uy0 <= m.y+m.h);
+      if(slot){ useItem(slot.id); return; }
+    }
+    if(state === "shop"){
+      const row = shopRows.find(m => ux0 >= m.x && ux0 <= m.x+m.w && uy0 >= m.y && uy0 <= m.y+m.h);
+      if(row){
+        if(row.i !== shopIndex){ shopIndex = row.i; Audio5.sfx("dodge"); }
+        else buyItem();
+        return;
+      }
+      toMenu();
+      return;
+    }
+  }
   if(state === "board"){
     const r = screenEl.getBoundingClientRect();
     const ux = (e.clientX - r.left) / r.width  * uiC.width;
@@ -2684,6 +2879,11 @@ screenEl.addEventListener("pointerdown", e => {
     if(ux >= boardRect.x && ux <= boardRect.x+boardRect.w &&
        uy >= boardRect.y && uy <= boardRect.y+boardRect.h){
       openBoard();
+      return;
+    }
+    if(ux >= shopRect.x && ux <= shopRect.x+shopRect.w &&
+       uy >= shopRect.y && uy <= shopRect.y+shopRect.h){
+      openShop();
       return;
     }
     if(ux >= bossRect.x && ux <= bossRect.x+bossRect.w &&
