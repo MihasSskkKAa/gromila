@@ -2310,6 +2310,7 @@ const boardBossRect = {x:0, y:0, w:0, h:0};
 const boardDiffRect = {x:0, y:0, w:0, h:0};
 const playRect = {x:0, y:0, w:0, h:0};
 const shopRect = {x:0, y:0, w:0, h:0};
+const titleRect = {x:0, y:0, w:0, h:0};
 const slotRects = [];
 const shopRows = [];
 
@@ -2402,6 +2403,9 @@ function drawUI(){
     u.scale(pulse, pulse);
     chromaText("ГРОМИЛА", 0, 0, 66);
     u.restore();
+    // невидимая зона: долгое удержание заголовка выдаёт монеты
+    titleRect.w = Math.min(CW*0.7, 420*uiK); titleRect.h = Math.round(70*uiK);
+    titleRect.x = cx - titleRect.w/2;        titleRect.y = CH*0.20 - titleRect.h*0.75;
     // подзаголовок называет того, кто играет, и того, против кого
     text(((player || "ЯРИК") + " ПРОТИВ " + curBoss().vs).toUpperCase(),
          cx, CH*0.256, narrow ? 13 : 16, P.orange, "center");
@@ -2759,6 +2763,40 @@ function shiftBoss(step){
   Audio5.sfx(curBoss().sfx.throw);
 }
 
+/* ============================================================
+   СКРЫТАЯ ВЫДАЧА МОНЕТ
+   На клавиатуре — старый добрый код: ↑ ↑ ↓ ↓ ← → ← → B A.
+   На телефоне клавиатуры нет, поэтому то же самое делает
+   долгое удержание заголовка в меню.
+   ============================================================ */
+const KONAMI = ["ArrowUp","ArrowUp","ArrowDown","ArrowDown",
+                "ArrowLeft","ArrowRight","ArrowLeft","ArrowRight","KeyB","KeyA"];
+let konamiPos = 0;
+
+function grantCoins(n){
+  coins += n;
+  saveWallet();
+  Audio5.sfx("heart");
+  say("+" + n + " МОНЕТ", W/2, H*0.38, P.orange, true);
+  burst(W/2, H*0.45, 26, 120, [P.orange, P.bone, P.cyan], -1);
+}
+
+function konamiFeed(code){
+  if(code === KONAMI[konamiPos]){
+    konamiPos++;
+    if(konamiPos === KONAMI.length){ konamiPos = 0; grantCoins(1000); }
+  } else {
+    konamiPos = (code === KONAMI[0]) ? 1 : 0;
+  }
+}
+
+let titleHold = null;
+function titleHoldStart(){
+  clearTimeout(titleHold);
+  titleHold = setTimeout(() => { titleHold = null; grantCoins(1000); }, 1600);
+}
+function titleHoldStop(){ clearTimeout(titleHold); titleHold = null; }
+
 let shopIndex = 0;
 function openShop(){
   state = "shop";
@@ -2800,6 +2838,7 @@ window.addEventListener("keydown", e => {
     return;
   }
   if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Space"].includes(e.code)) e.preventDefault();
+  if(!e.repeat) konamiFeed(e.code);          // копим последовательность скрытого кода
   if(e.repeat && (e.code === "ArrowUp" || e.code === "ArrowDown")) return;
   if(!e.repeat){
     if(e.code === "ArrowLeft"  || e.code === "KeyA") lastPress = "left";
@@ -2901,6 +2940,11 @@ screenEl.addEventListener("pointerdown", e => {
       openShop();
       return;
     }
+    if(ux >= titleRect.x && ux <= titleRect.x+titleRect.w &&
+       uy >= titleRect.y && uy <= titleRect.y+titleRect.h){
+      titleHoldStart();                       // держим заголовок — идёт отсчёт
+      return;
+    }
     if(ux >= bossRect.x && ux <= bossRect.x+bossRect.w &&
        uy >= bossRect.y && uy <= bossRect.y+bossRect.h){
       shiftBoss(ux < bossRect.x + bossRect.w/2 ? -1 : 1);   // левый край назад, правый вперёд
@@ -2918,7 +2962,10 @@ screenEl.addEventListener("pointerdown", e => {
 });
 screenEl.addEventListener("pointermove", e => { if(touchX !== null) pointerAt(e); });
 ["pointerup","pointercancel","pointerleave"].forEach(ev =>
-  screenEl.addEventListener(ev, () => { touchX = null; pressed.left = pressed.right = false; }));
+  screenEl.addEventListener(ev, () => {
+    touchX = null; pressed.left = pressed.right = false;
+    titleHoldStop();                          // отпустили заголовок — отсчёт сбрасываем
+  }));
 
 /* Каждая кнопка забирает свой палец себе, поэтому нажимать можно обе
    разом, а соскользнувший с кнопки палец не считается отпущенным. */
